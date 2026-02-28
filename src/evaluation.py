@@ -62,9 +62,8 @@ def evaluate_retriever():
     # {'MAP@1': 0.05611, 'MAP@5': 0.10866, 'MAP@10': 0.10866, 'MAP@30': 0.10866}, 
     # {'Recall@1': 0.05611, 'Recall@5': 0.12886, 'Recall@10': 0.12886, 'Recall@30': 0.12886}, 
     # {'P@1': 0.43963, 'P@5': 0.31641, 'P@10': 0.1582, 'P@30': 0.05273})  
-    print(f"Recall@30: {recall['Recall@30']}")
     logging.info("Initial Retrieval Metrics:")
-    logging.info(f"Recall@30: {recall['Recall@30']}")
+    logging.info(f"Recall@30: {recall['Recall@30']}") # 0.12886
 
 
     reranked_results = {}
@@ -89,9 +88,9 @@ def evaluate_retriever():
     # Evaluate reranked results using NDCG@3
     k_values_reranked = [1, 3, 5, 10]
     ndcg, _map, recall, precision = evaluator.evaluate(qrels, reranked_results, k_values_reranked)
-    print(f"NDCG@3: {ndcg['NDCG@3']}")
     logging.info("Reranked Retrieval Metrics:")
-    logging.info(f"NDCG@3: {ndcg['NDCG@3']}")
+    logging.info(f"NDCG@3: {ndcg['NDCG@3']}") # 0.37524
 
-if __name__ == "__main__":
-    evaluate_retriever()
+
+
+print(evaluate_retriever())
