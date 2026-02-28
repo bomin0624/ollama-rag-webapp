@@ -8,7 +8,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import CrossEncoder
 
-from config import embedding_model, reranker_model, url
+from config import embedding_model, url
 
 
 def rerank_documents(
