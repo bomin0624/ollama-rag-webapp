@@ -7,7 +7,7 @@ from beir.retrieval.evaluation import EvaluateRetrieval
 from tqdm import tqdm
 
 from config import embedding_model, reranker_model, url
-from retriever import RAGRetriever, initialize_vector_database
+from retriever import HybridRetriever, RAGRetriever, initialize_vector_database
 
 
 def evaluate_retriever():
@@ -34,7 +34,7 @@ def evaluate_retriever():
     initialize_vector_database(db_directory)
 
     search_k = 30
-    retriever = RAGRetriever(
+    ragretriever = RAGRetriever(
         db_directory=db_directory,
         embedding_model=embedding_model,
         reranker_model=reranker_model,
@@ -43,7 +43,7 @@ def evaluate_retriever():
     logging.info(f"--- Evaluating Initial Retrieval (Top {search_k}) ---")
     initial_results = {}
     for query_id, query_text in tqdm(queries.items(), desc="Initial Retriever"):
-        docs_with_scores = retriever.vector_store.similarity_search_with_score(
+        docs_with_scores = ragretriever.vector_store.similarity_search_with_score(
             query_text, k=search_k
         )
         
@@ -68,13 +68,13 @@ def evaluate_retriever():
 
     reranked_results = {}
     for query_id, query_text in tqdm(queries.items(), desc="Reranking"):
-        initial_docs = retriever.retriever.invoke(query_text) # will use the init paramaters of the retriever, which is search_k=30
+        initial_docs = ragretriever.retriever.invoke(query_text) # will use the init paramaters of the retriever, which is search_k=30
          # print(initial_docs)
         if not initial_docs:
             reranked_results[query_id] = {}
             continue
         pairs = [(query_text, doc.page_content) for doc in initial_docs]
-        scores = retriever.reranker.predict(pairs)
+        scores = ragretriever.reranker.predict(pairs)
         scored_docs = sorted(zip(scores, initial_docs), key=lambda x: x[0], reverse=True)
 
         query_results = {}
