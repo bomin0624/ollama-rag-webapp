@@ -3,12 +3,14 @@ import os
 from beir import util
 from beir.datasets.data_loader import GenericDataLoader
 from langchain_chroma import Chroma
+from langchain_classic.retrievers import EnsembleRetriever
+from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import CrossEncoder
 
-from config import embedding_model, url
+from config import embedding_model, reranker_model, url
 
 
 def rerank_documents(
@@ -86,11 +88,41 @@ def initialize_vector_database(db_directory: str):
         print(f"Vector store created and persisted to {db_directory}")
 
 
+class HybridRetriever(RAGRetriever):
+    """A retriever that combines both vector search and sparse search (BM25)."""
+    def __init__(self, db_directory: str, embedding_model: str, reranker_model: str, search_k: int = 30):
+        super().__init__(db_directory, embedding_model, reranker_model, search_k)
+        
+        collection = self.vector_store.get() # Get the raw collection data to use for BM25 # TODO: This is not efficient as it loads the entire collection into memory. ex: Elasticsearch, Weaviate 
+        # print(f"DEBUG: Collection keys: {list(collection.keys())}") # ['ids', 'embeddings', 'documents', 'uris', 'included', 'data', 'metadatas']
+        # print(f"DEBUG: Total documents: {(collection['documents'][:10])}")
+        # print(f"DEBUG: Total metadatas: {(collection['metadatas'][:10])}") # {'id': 'MED-335', 'title': 'Differences among total and in vitro digestible phosphorus content of meat and milk products.'}
+        if collection['metadatas']:
+            metadata = collection['metadatas']
+        else:
+            metadata = [{}] * len(collection['documents'])
+        
+        documents = [Document(page_content=text, metadata=meta) 
+                     for text, meta in zip(collection['documents'], metadata) 
+                     if text ]
+
+        # print(documents[0])
+        bm25_retriever = BM25Retriever.from_documents(documents)
+        bm25_retriever.k = search_k
+
+        self.retriever = EnsembleRetriever(retrievers=[self.retriever, bm25_retriever], weights=[0.5, 0.5])
+
 
 if __name__ == "__main__":
 
     db_directory = os.path.join(os.path.dirname(__file__), "..", "vectordatabase")
     initialize_vector_database(db_directory)
+    retriever = HybridRetriever(
+        db_directory=db_directory,
+        embedding_model=embedding_model,
+        reranker_model=reranker_model,
+    )
+
     # if not os.path.exists(db_directory) or not os.listdir(db_directory):
     #     print("Vector database not found. Creating new database...")
     #     data_path = util.download_and_unzip(url, os.path.join(os.path.dirname(__file__), "..", "datasets"))
