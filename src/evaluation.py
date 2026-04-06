@@ -16,7 +16,7 @@ def evaluate_retriever():
     """
     log_dir = os.path.join(os.path.dirname(__file__), "..", "log")
     os.makedirs(log_dir, exist_ok=True)
-    log_file_path = os.path.join(log_dir, "evaluation_nfcorpus.log")
+    log_file_path = os.path.join(log_dir, "evaluation_nfcorpus_hybrid.log")
 
     logging.basicConfig(
         level=logging.INFO,
@@ -34,7 +34,13 @@ def evaluate_retriever():
     initialize_vector_database(db_directory)
 
     search_k = 30
-    ragretriever = RAGRetriever(
+    # ragretriever = RAGRetriever(
+    #     db_directory=db_directory,
+    #     embedding_model=embedding_model,
+    #     reranker_model=reranker_model,
+    #     search_k=search_k
+    # )
+    ragretriever = HybridRetriever(
         db_directory=db_directory,
         embedding_model=embedding_model,
         reranker_model=reranker_model,
@@ -63,7 +69,7 @@ def evaluate_retriever():
     # {'Recall@1': 0.05611, 'Recall@5': 0.12886, 'Recall@10': 0.12886, 'Recall@30': 0.12886}, 
     # {'P@1': 0.43963, 'P@5': 0.31641, 'P@10': 0.1582, 'P@30': 0.05273})  
     logging.info("Initial Retrieval Metrics:")
-    logging.info(f"Recall@30: {recall['Recall@30']}") # 0.12886
+    logging.info(f"Recall@30: {recall['Recall@30']}") # Vector: 0.12886,  Hybrid: 0.12886
 
 
     reranked_results = {}
@@ -89,7 +95,7 @@ def evaluate_retriever():
     k_values_reranked = [1, 3, 5, 10]
     ndcg, _map, recall, precision = evaluator.evaluate(qrels, reranked_results, k_values_reranked)
     logging.info("Reranked Retrieval Metrics:")
-    logging.info(f"NDCG@3: {ndcg['NDCG@3']}") # 0.37524
+    logging.info(f"NDCG@3: {ndcg['NDCG@3']}") # Vector: 0.37524,  Hybrid: 0.3861
 
 
 

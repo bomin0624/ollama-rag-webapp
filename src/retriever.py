@@ -110,7 +110,7 @@ class HybridRetriever(RAGRetriever):
         bm25_retriever = BM25Retriever.from_documents(documents)
         bm25_retriever.k = search_k
 
-        self.retriever = EnsembleRetriever(retrievers=[self.retriever, bm25_retriever], weights=[0.5, 0.5])
+        self.retriever = EnsembleRetriever(retrievers=[self.retriever, bm25_retriever], weights=[0.5, 0.5]) # Reciprocal Rank Fusion (RRF) Algorithm
 
 
 if __name__ == "__main__":

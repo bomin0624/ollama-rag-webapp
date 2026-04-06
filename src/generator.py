@@ -3,7 +3,7 @@ from functools import lru_cache
 
 import ollama
 from config import embedding_model, reranker_model
-from retriever import RAGRetriever, initialize_vector_database
+from retriever import HybridRetriever, RAGRetriever, initialize_vector_database
 
 DB_DIRECTORY = os.path.join(os.path.dirname(__file__), "..", "vectordatabase")
 
