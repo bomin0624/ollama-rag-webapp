@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 
@@ -10,13 +11,13 @@ from config import embedding_model, reranker_model, url
 from retriever import HybridRetriever, RAGRetriever, initialize_vector_database
 
 
-def evaluate_retriever():
+def evaluate_retriever(retriever_type: str = "hybrid"):
     """
     Evaluate the retriever performance using Recall@30 for initial retrieval and NDCG@3 for reranked results.
     """
     log_dir = os.path.join(os.path.dirname(__file__), "..", "log")
     os.makedirs(log_dir, exist_ok=True)
-    log_file_path = os.path.join(log_dir, "evaluation_nfcorpus_hybrid.log")
+    log_file_path = os.path.join(log_dir, f"evaluation_nfcorpus_{retriever_type}.log")
 
     logging.basicConfig(
         level=logging.INFO,
@@ -33,31 +34,39 @@ def evaluate_retriever():
     db_directory = os.path.join(os.path.dirname(__file__), "..", "vectordatabase")
     initialize_vector_database(db_directory)
 
-    search_k = 30
-    # ragretriever = RAGRetriever(
-    #     db_directory=db_directory,
-    #     embedding_model=embedding_model,
-    #     reranker_model=reranker_model,
-    #     search_k=search_k
-    # )
-    ragretriever = HybridRetriever(
-        db_directory=db_directory,
-        embedding_model=embedding_model,
-        reranker_model=reranker_model,
-        search_k=search_k
-    )
+    search_k = 100
+    if retriever_type == "hybrid":
+        ragretriever = HybridRetriever(
+            db_directory=db_directory,
+            embedding_model=embedding_model,
+            reranker_model=reranker_model,
+            search_k=search_k
+        )
+    elif retriever_type == "vector":
+        ragretriever = RAGRetriever(
+            db_directory=db_directory,
+            embedding_model=embedding_model,
+            reranker_model=reranker_model,
+            search_k=search_k
+        )
+    else:
+        raise ValueError(f"Unknown retriever type: {retriever_type}")
+        
     logging.info(f"--- Evaluating Initial Retrieval (Top {search_k}) ---")
     initial_results = {}
     for query_id, query_text in tqdm(queries.items(), desc="Initial Retriever"):
-        docs_with_scores = ragretriever.vector_store.similarity_search_with_score(
-            query_text, k=search_k
-        )
-        
+        initial_docs = ragretriever.retriever.invoke(query_text) # will return the list that already sorted by the retriever
         query_results ={}
-        for doc, score in docs_with_scores:
+        for rank, doc in enumerate(initial_docs):
+            # print(f"\n=== Rank: {rank} ===")
+            # print(f"Doc ID: {doc.metadata.get('id')}")
+            # print(f"Doc Content preview: {doc.page_content[:100]}...")
+            # print(f"Doc Metadata: {doc.metadata}")
+            
             if doc.metadata["id"] not in query_results:
-                query_results[doc.metadata["id"]] = 1 - score # L2 distance is returned as score, we convert it to similarity by doing 1 - score
-        initial_results[query_id] = query_results   
+                query_results[doc.metadata["id"]] = 1.0 / (rank + 1) # for BEIR to calculate the metrics, we need to assign a score to each retrieved document.
+
+        initial_results[query_id] = query_results
 
     # Evaluate initial retrieval using Recall@30
     evaluator = EvaluateRetrieval()
@@ -74,7 +83,7 @@ def evaluate_retriever():
 
     reranked_results = {}
     for query_id, query_text in tqdm(queries.items(), desc="Reranking"):
-        initial_docs = ragretriever.retriever.invoke(query_text) # will use the init paramaters of the retriever, which is search_k=30
+        initial_docs = ragretriever.retriever.invoke(query_text) # will use the init paramaters of the retriever, which is search_k
          # print(initial_docs)
         if not initial_docs:
             reranked_results[query_id] = {}
@@ -95,8 +104,12 @@ def evaluate_retriever():
     k_values_reranked = [1, 3, 5, 10]
     ndcg, _map, recall, precision = evaluator.evaluate(qrels, reranked_results, k_values_reranked)
     logging.info("Reranked Retrieval Metrics:")
-    logging.info(f"NDCG@3: {ndcg['NDCG@3']}") # Vector: 0.37524,  Hybrid: 0.3861
+    logging.info(f"NDCG@3: {ndcg['NDCG@3']}")
 
 
 
-print(evaluate_retriever())
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Evaluate Retriever Models")
+    parser.add_argument("--retriever", type=str, choices=["vector", "hybrid"], default="hybrid", help="Choose the retriever to evaluate")
+    args = parser.parse_args()
+    evaluate_retriever(retriever_type=args.retriever)
