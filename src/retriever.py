@@ -38,7 +38,7 @@ def rerank_documents(
 
 class RAGRetriever:
 
-    def __init__(self, db_directory: str, embedding_model: str, reranker_model: str, search_k: int = 30):
+    def __init__(self, db_directory: str, embedding_model: str, reranker_model: str, search_k: int):
         self.embedding = HuggingFaceEmbeddings(model_name=embedding_model)
         self.vector_store = Chroma(
             persist_directory=db_directory,
@@ -80,17 +80,18 @@ def initialize_vector_database(db_directory: str):
     
 
         embedding = HuggingFaceEmbeddings(model_name=embedding_model)
-        vector_store = Chroma.from_documents(
+        Chroma.from_documents(
             documents=chunks,
             embedding=embedding,
             persist_directory=db_directory,
+            collection_metadata={"hnsw:space": "cosine"}
         )
         print(f"Vector store created and persisted to {db_directory}")
 
 
 class HybridRetriever(RAGRetriever):
     """A retriever that combines both vector search and sparse search (BM25)."""
-    def __init__(self, db_directory: str, embedding_model: str, reranker_model: str, search_k: int = 30):
+    def __init__(self, db_directory: str, embedding_model: str, reranker_model: str, search_k: int):
         super().__init__(db_directory, embedding_model, reranker_model, search_k)
         
         collection = self.vector_store.get() # Get the raw collection data to use for BM25 # TODO: This is not efficient as it loads the entire collection into memory. ex: Elasticsearch, Weaviate 
@@ -110,7 +111,7 @@ class HybridRetriever(RAGRetriever):
         bm25_retriever = BM25Retriever.from_documents(documents)
         bm25_retriever.k = search_k
 
-        self.retriever = EnsembleRetriever(retrievers=[self.retriever, bm25_retriever], weights=[0.5, 0.5]) # Reciprocal Rank Fusion (RRF) Algorithm
+        self.retriever = EnsembleRetriever(retrievers=[self.retriever, bm25_retriever], weights=[0.7, 0.3]) # Reciprocal Rank Fusion (RRF) Algorithm
 
 
 if __name__ == "__main__":
@@ -121,6 +122,7 @@ if __name__ == "__main__":
         db_directory=db_directory,
         embedding_model=embedding_model,
         reranker_model=reranker_model,
+        search_k=100
     )
 
     # if not os.path.exists(db_directory) or not os.listdir(db_directory):
