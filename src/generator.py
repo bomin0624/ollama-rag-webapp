@@ -36,9 +36,8 @@ def generate_prompt_stream(query:str) -> str:
             prompt += f"\nDocument {doc.metadata['id']}:\n{doc.page_content}\n"
     return prompt
 
-def generate_response() -> str:
-    prompt = generate_prompt_stream("Living Longer by Reducing Leucine Intake")
-    # print(prompt)
+def generate_response(query: str) -> str:
+    prompt = generate_prompt_stream(query)
     result = ollama.chat(
         model='llama3.1',
         messages=[
@@ -127,5 +126,6 @@ def generate_response() -> str:
 
 if __name__ == "__main__":
     # test_ollama()
-    response = generate_response()
+    query = input("Please enter your query: ")
+    response = generate_response(query)
     print(response)
