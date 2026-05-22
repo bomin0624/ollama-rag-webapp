@@ -7,8 +7,8 @@ from beir.datasets.data_loader import GenericDataLoader
 from beir.retrieval.evaluation import EvaluateRetrieval
 from tqdm import tqdm
 
-from config import embedding_model, reranker_model, url
-from retriever import HybridRetriever, RAGRetriever, initialize_vector_database
+from src.config import embedding_model, reranker_model, url
+from src.retriever import HybridRetriever, RAGRetriever, initialize_vector_database
 
 
 def evaluate_retriever(retriever_type: str = "hybrid"):

@@ -2,8 +2,8 @@ import os
 from functools import lru_cache
 
 import ollama
-from config import embedding_model, reranker_model
-from retriever import HybridRetriever, RAGRetriever, initialize_vector_database
+from src.config import embedding_model, reranker_model, GENERATE_MODEL
+from src.retriever import HybridRetriever, RAGRetriever, initialize_vector_database
 
 DB_DIRECTORY = os.path.join(os.path.dirname(__file__), "..", "vectordatabase")
 
@@ -39,7 +39,7 @@ def generate_prompt_stream(query:str) -> str:
 def generate_response(query: str) -> str:
     prompt = generate_prompt_stream(query)
     result = ollama.chat(
-        model='llama3.1',
+        model=GENERATE_MODEL,
         messages=[
             {'role': 'user', 'content': prompt}
         ]

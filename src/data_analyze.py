@@ -7,7 +7,7 @@ from beir import util
 from beir.datasets.data_loader import GenericDataLoader
 from transformers import AutoTokenizer
 
-from config import embedding_model, url
+from src.config import embedding_model, url
 
 
 def analyze_token_length(texts, tokenizer, title):

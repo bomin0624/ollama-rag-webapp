@@ -3,7 +3,7 @@ import os
 from beir import util
 from beir.datasets.data_loader import GenericDataLoader
 
-from config import url
+from src.config import url
 
 data_path = util.download_and_unzip(url, os.path.join(os.path.dirname(__file__), "..", "datasets"))
 corpus, queries, qrels = GenericDataLoader(data_path).load(split="dev")
