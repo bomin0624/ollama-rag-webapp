@@ -3,23 +3,23 @@ import os
 import sys
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel  # for defining request body models
-
-from generator import DB_DIRECTORY, generate_response, initialize_vector_database
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
-log_dir = os.path.join(os.path.dirname(__file__), "log")
-os.makedirs(log_dir, exist_ok=True)
-log_file_path = os.path.join(log_dir, "webapp.log")
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler(log_file_path, mode="a"), logging.StreamHandler()],
-)
+from fastapi import FastAPI
 
 
+from src.generator import DB_DIRECTORY, initialize_vector_database
+from src.routes import router
+
+
+def configure_logging() -> None:
+    log_dir = os.path.join(os.path.dirname(__file__), "log")
+    os.makedirs(log_dir, exist_ok=True)
+    log_file_path = os.path.join(log_dir, "webapp.log")
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[logging.FileHandler(log_file_path, mode="a"), logging.StreamHandler()],
+    )
 
 
 @asynccontextmanager
@@ -34,20 +34,20 @@ async def lifespan(app: FastAPI):
     # --- Shutdown Phase ---
     logging.info("Server shutting down: Cleaning up resources...")
 
-app = FastAPI(lifespan=lifespan)
 
 
-@app.get("/health")
+def create_app() -> FastAPI:
+    configure_logging()
+    app = FastAPI(lifespan=lifespan)
+    app.include_router(router)
+    return app
 
-def health_check():
-    """Health check endpoint to verify the server is running."""
-    return {"status": "ok"}
+app = create_app()
 
-
-class QueryRequest(BaseModel):
-    query: str
-
-
+# TO:DO 
+# add post 查詢路由 input: query string, output: generated response
+# front-end
+# Evaluation: RAGAS
 
 
 def main():
