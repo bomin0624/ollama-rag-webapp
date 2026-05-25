@@ -1,4 +1,3 @@
-
 dataset = "nfcorpus"
 DATASET_URL = f"https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{dataset}.zip"
 

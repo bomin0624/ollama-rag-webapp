@@ -22,6 +22,28 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "autopep8>=2.3.2",
-    "isort>=7.0.0",
+    "black>=25.1.0",
+    "ruff>=0.11.0",
 ]
+
+[tool.black]
+line-length = 120
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort (import sorting)
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]

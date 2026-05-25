@@ -13,7 +13,7 @@ print(type(corpus), type(queries), type(qrels))
 first_corpus_id = list(corpus.keys())[1]
 print("--- Corpus Example ---")
 print(f"ID: {first_corpus_id}")
-print(f"Content: {corpus[first_corpus_id]}") # text and title
+print(f"Content: {corpus[first_corpus_id]}")  # text and title
 
 
 first_query_id = list(queries.keys())[1]
