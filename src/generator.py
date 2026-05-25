@@ -2,7 +2,7 @@ import os
 from functools import lru_cache
 
 import ollama
-from src.config import embedding_model, reranker_model, GENERATE_MODEL
+from src.config import GENERATE_MODEL, SEARCH_K, embedding_model, reranker_model
 from src.retriever import HybridRetriever, RAGRetriever, initialize_vector_database
 
 DB_DIRECTORY = os.path.join(os.path.dirname(__file__), "..", "vectordatabase")
@@ -15,7 +15,7 @@ def get_retriever(db_directory: str) -> RAGRetriever:
             db_directory=db_directory,
             embedding_model=embedding_model,
             reranker_model=reranker_model,
-            search_k=100
+            search_k=SEARCH_K
         )
 
 
@@ -48,8 +48,7 @@ def generate_response(query: str) -> str:
     return result['message']['content']
 
 
-if __name__ == "__main__":
-    # test_ollama()
-    query = input("Please enter your query: ")
-    response = generate_response(query)
-    print(response)
+# if __name__ == "__main__":
+#     query = input("Please enter your query: ")
+#     response = generate_response(query)
+#     print(response)
