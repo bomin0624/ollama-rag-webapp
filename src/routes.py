@@ -3,8 +3,6 @@ from pydantic import BaseModel
 
 from src.generator import generate_response
 
-
-
 router = APIRouter()
 
 
@@ -26,4 +24,4 @@ def query(request: QueryRequest):
         response = generate_response(request.query)
         return {"response": response}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
