@@ -10,11 +10,11 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import CrossEncoder
 
-from src.config import embedding_model, reranker_model, url
+from src.config import DATASET_URL, EMBEDDING_MODEL, RERANKER_MODEL
 
 
 def rerank_documents(
-    query: str, documents: list[Document], reranker_model:CrossEncoder, top_n: int
+    query: str, documents: list[Document], reranker_model: CrossEncoder, top_n: int
 ) -> list[Document]:
     """Using CrossEncoder to rerank the retrieved documents."""
     if not documents:
@@ -22,8 +22,10 @@ def rerank_documents(
     pairs = [(query, doc.page_content) for doc in documents]
     scores = reranker_model.predict(pairs)
     # List of tuples [(score, Document), (score, Document), ...]
-    scored_docs = sorted(zip(scores, documents), key=lambda x: x[0], reverse=True)
-    
+    scored_docs = sorted(
+        zip(scores, documents, strict=False), key=lambda x: x[0], reverse=True
+    )
+
     unique_docs = []
     seen_ids = set()
     for _, doc in scored_docs:
@@ -36,9 +38,34 @@ def rerank_documents(
     return unique_docs
 
 
-class RAGRetriever:
+def build_bm25_documents(collection: dict) -> list[Document]:
+    """Build BM25 documents with a stable metadata id on every document."""
+    documents = collection["documents"]
+    collection_ids = collection["ids"]
+    metadatas = collection["metadatas"] or []
 
-    def __init__(self, db_directory: str, embedding_model: str, reranker_model: str, search_k: int):
+    bm25_documents = []
+    for index, text in enumerate(documents):
+        if not text:
+            continue
+
+        metadata = dict(metadatas[index] or {}) if index < len(metadatas) else {}
+        if "id" not in metadata or metadata["id"] is None:
+            metadata["id"] = collection_ids[index]
+
+        bm25_documents.append(Document(page_content=text, metadata=metadata))
+
+    return bm25_documents
+
+
+class RAGRetriever:
+    def __init__(
+        self,
+        db_directory: str,
+        embedding_model: str,
+        reranker_model: str,
+        search_k: int,
+    ):
         self.embedding = HuggingFaceEmbeddings(model_name=embedding_model)
         self.vector_store = Chroma(
             persist_directory=db_directory,
@@ -48,10 +75,12 @@ class RAGRetriever:
         self.retriever = self.vector_store.as_retriever(search_kwargs={"k": search_k})
         print(f"Loading reranker model: {reranker_model}")
         self.reranker = CrossEncoder(reranker_model)
-    
+
     def retrieve_and_rerank(self, query: str, top_n: int = 3) -> list[Document]:
         initial_docs = self.retriever.invoke(query)
-        reranked_docs = rerank_documents(query, initial_docs, self.reranker, top_n=top_n)
+        reranked_docs = rerank_documents(
+            query, initial_docs, self.reranker, top_n=top_n
+        )
         return reranked_docs
 
 
@@ -59,14 +88,19 @@ def initialize_vector_database(db_directory: str):
     """Initialize the vector database if it does not exist."""
     if not os.path.exists(db_directory) or not os.listdir(db_directory):
         print("Vector database not found. Creating new database...")
-        data_path = util.download_and_unzip(url, os.path.join(os.path.dirname(__file__), "..", "datasets"))
+        data_path = util.download_and_unzip(
+            DATASET_URL, os.path.join(os.path.dirname(__file__), "..", "datasets")
+        )
         corpus, queries, qrels = GenericDataLoader(data_path).load(split="test")
         documents = []
 
         for doc_id, content in corpus.items():
-            documents.append(Document(page_content=content["text"], 
-                                    metadata={"title": content["title"], 
-                                                "id": doc_id}))
+            documents.append(
+                Document(
+                    page_content=content["text"],
+                    metadata={"title": content["title"], "id": doc_id},
+                )
+            )
 
         # max_length * 4 = chunk_size
         # chunk_overlap = chunk_size * 0.10 ~ 0.25
@@ -77,52 +111,56 @@ def initialize_vector_database(db_directory: str):
 
         chunks = text_splitter.split_documents(documents)
         print(f"Number of chunks: {len(chunks)}")
-    
 
-        embedding = HuggingFaceEmbeddings(model_name=embedding_model)
+        embedding = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
         Chroma.from_documents(
             documents=chunks,
             embedding=embedding,
             persist_directory=db_directory,
-            collection_metadata={"hnsw:space": "cosine"}
+            collection_metadata={"hnsw:space": "cosine"},
         )
         print(f"Vector store created and persisted to {db_directory}")
 
 
 class HybridRetriever(RAGRetriever):
     """A retriever that combines both vector search and sparse search (BM25)."""
-    def __init__(self, db_directory: str, embedding_model: str, reranker_model: str, search_k: int):
+
+    def __init__(
+        self,
+        db_directory: str,
+        embedding_model: str,
+        reranker_model: str,
+        search_k: int,
+    ):
         super().__init__(db_directory, embedding_model, reranker_model, search_k)
-        
-        collection = self.vector_store.get() # Get the raw collection data to use for BM25 # TODO: This is not efficient as it loads the entire collection into memory. ex: Elasticsearch, Weaviate 
-        # print(f"DEBUG: Collection keys: {list(collection.keys())}") # ['ids', 'embeddings', 'documents', 'uris', 'included', 'data', 'metadatas']
+
+        # Get the raw collection data to use for BM25.
+        # TODO: This loads the entire collection into memory. Consider Elasticsearch or Weaviate.
+        collection = self.vector_store.get()
+        # print(f"DEBUG: Collection keys: {list(collection.keys())}")
+        # ['ids', 'embeddings', 'documents', 'uris', 'included', 'data', 'metadatas']
         # print(f"DEBUG: Total documents: {(collection['documents'][:10])}")
-        # print(f"DEBUG: Total metadatas: {(collection['metadatas'][:10])}") # {'id': 'MED-335', 'title': 'Differences among total and in vitro digestible phosphorus content of meat and milk products.'}
-        if collection['metadatas']:
-            metadata = collection['metadatas']
-        else:
-            metadata = [{}] * len(collection['documents'])
-        
-        documents = [Document(page_content=text, metadata=meta) 
-                     for text, meta in zip(collection['documents'], metadata) 
-                     if text ]
+        # print(f"DEBUG: Total metadatas: {(collection['metadatas'][:10])}")
+        # Example metadata: {'id': 'MED-335', 'title': '...'}
+        documents = build_bm25_documents(collection)
 
         # print(documents[0])
         bm25_retriever = BM25Retriever.from_documents(documents)
         bm25_retriever.k = search_k
 
-        self.retriever = EnsembleRetriever(retrievers=[self.retriever, bm25_retriever], weights=[0.7, 0.3]) # Reciprocal Rank Fusion (RRF) Algorithm
+        self.retriever = EnsembleRetriever(
+            retrievers=[self.retriever, bm25_retriever], weights=[0.7, 0.3]
+        )  # Reciprocal Rank Fusion (RRF) Algorithm
 
 
 if __name__ == "__main__":
-
     db_directory = os.path.join(os.path.dirname(__file__), "..", "vectordatabase")
     initialize_vector_database(db_directory)
     retriever = HybridRetriever(
         db_directory=db_directory,
-        embedding_model=embedding_model,
-        reranker_model=reranker_model,
-        search_k=100
+        embedding_model=EMBEDDING_MODEL,
+        reranker_model=RERANKER_MODEL,
+        search_k=100,
     )
 
     # if not os.path.exists(db_directory) or not os.listdir(db_directory):
@@ -132,8 +170,8 @@ if __name__ == "__main__":
     #     documents = []
 
     #     for doc_id, content in corpus.items():
-    #         documents.append(Document(page_content=content["text"], 
-    #                                 metadata={"title": content["title"], 
+    #         documents.append(Document(page_content=content["text"],
+    #                                 metadata={"title": content["title"],
     #                                             "id": doc_id}))
 
     #     # max_length * 4 = chunk_size
@@ -145,7 +183,6 @@ if __name__ == "__main__":
 
     #     chunks = text_splitter.split_documents(documents)
     #     print(f"Number of chunks: {len(chunks)}")
-    
 
     #     embedding = HuggingFaceEmbeddings(model_name=embedding_model)
     #     vector_store = Chroma.from_documents(

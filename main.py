@@ -1,10 +1,8 @@
 import logging
 import os
-import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-
 
 from src.generator import DB_DIRECTORY, initialize_vector_database
 from src.routes import router
@@ -28,12 +26,11 @@ async def lifespan(app: FastAPI):
     logging.info("Server starting: Initializing vector database...")
     initialize_vector_database(DB_DIRECTORY)
     logging.info("Vector database is ready!")
-    
+
     yield  # Yield control; FastAPI starts receiving and processing API requests
-    
+
     # --- Shutdown Phase ---
     logging.info("Server shutting down: Cleaning up resources...")
-
 
 
 def create_app() -> FastAPI:
@@ -42,9 +39,10 @@ def create_app() -> FastAPI:
     app.include_router(router)
     return app
 
+
 app = create_app()
 
-# TO:DO 
+# TO:DO
 # add post 查詢路由 input: query string, output: generated response
 # front-end
 # Evaluation: RAGAS
