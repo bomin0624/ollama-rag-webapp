@@ -7,11 +7,19 @@ from beir.datasets.data_loader import GenericDataLoader
 from beir.retrieval.evaluation import EvaluateRetrieval
 from tqdm import tqdm
 
-from src.config import DATASET_URL, EMBEDDING_MODEL, RERANKER_MODEL, retriever_type, search_k
+from src.config import (
+    DATASET_URL,
+    EMBEDDING_MODEL,
+    RERANKER_MODEL,
+    RETRIEVER_TYPE,
+    SEARCH_K,
+)
 from src.retriever import HybridRetriever, RAGRetriever, initialize_vector_database
 
 
-def evaluate_retriever(retriever_type: str = retriever_type, split: str = "dev") -> None:
+def evaluate_retriever(
+    retriever_type: str = RETRIEVER_TYPE, split: str = "dev"
+) -> None:
     """
     Evaluate the retriever performance using Recall@30 for initial retrieval and NDCG@3 for reranked results.
     """
@@ -22,10 +30,15 @@ def evaluate_retriever(retriever_type: str = retriever_type, split: str = "dev")
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
-        handlers=[logging.FileHandler(log_file_path, mode="w"), logging.StreamHandler()],
+        handlers=[
+            logging.FileHandler(log_file_path, mode="w"),
+            logging.StreamHandler(),
+        ],
     )
 
-    data_path = util.download_and_unzip(DATASET_URL, os.path.join(os.path.dirname(__file__), "..", "datasets"))
+    data_path = util.download_and_unzip(
+        DATASET_URL, os.path.join(os.path.dirname(__file__), "..", "datasets")
+    )
     corpus, queries, qrels = GenericDataLoader(data_path).load(split=split)
 
     # print(queries.items()) # {'PLAIN-2': 'Do Cholesterol Statin Drugs Cause Breast Cancer?'}
@@ -38,19 +51,19 @@ def evaluate_retriever(retriever_type: str = retriever_type, split: str = "dev")
             db_directory=db_directory,
             embedding_model=EMBEDDING_MODEL,
             reranker_model=RERANKER_MODEL,
-            search_k=search_k,
+            search_k=SEARCH_K,
         )
     elif retriever_type == "vector":
         ragretriever = RAGRetriever(
             db_directory=db_directory,
             embedding_model=EMBEDDING_MODEL,
             reranker_model=RERANKER_MODEL,
-            search_k=search_k,
+            search_k=SEARCH_K,
         )
     else:
         raise ValueError(f"Unknown retriever type: {retriever_type}")
 
-    logging.info(f"--- Evaluating Initial Retrieval (Top {search_k}) ---")
+    logging.info(f"--- Evaluating Initial Retrieval (Top {SEARCH_K}) ---")
     initial_results = {}
     retriever_cache_result = {}
     for query_id, query_text in tqdm(queries.items(), desc="Initial Retriever"):
@@ -64,13 +77,17 @@ def evaluate_retriever(retriever_type: str = retriever_type, split: str = "dev")
                 query_results[chunk.metadata["id"]] = 1.0 / (
                     rank + 1
                 )  # for BEIR to calculate the metrics, we need to assign a score to each retrieved document.
-        query_results = dict(sorted(query_results.items(), key=lambda x: x[1], reverse=True)[:search_k])
+        query_results = dict(
+            sorted(query_results.items(), key=lambda x: x[1], reverse=True)[:SEARCH_K]
+        )
         initial_results[query_id] = query_results
 
     # Evaluate initial retrieval using Recall@30
     evaluator = EvaluateRetrieval()
     k_values_initial = [1, 5, 10, 30]
-    ndcg, _map, recall, precision = evaluator.evaluate(qrels, initial_results, k_values_initial)
+    ndcg, _map, recall, precision = evaluator.evaluate(
+        qrels, initial_results, k_values_initial
+    )
     # print(evaluator.evaluate(qrels, initial_results, k_values_initial))
     # ({'NDCG@1': 0.41796, 'NDCG@5': 0.3661, 'NDCG@10': 0.2739, 'NDCG@30': 0.20669},
     # {'MAP@1': 0.05611, 'MAP@5': 0.10866, 'MAP@10': 0.10866, 'MAP@30': 0.10866},
@@ -88,7 +105,11 @@ def evaluate_retriever(retriever_type: str = retriever_type, split: str = "dev")
             continue
         pairs = [(query_text, chunk.page_content) for chunk in retrieved_chunks]
         scores = ragretriever.reranker.predict(pairs)
-        scored_chunks = sorted(zip(scores, retrieved_chunks, strict=False), key=lambda x: x[0], reverse=True)
+        scored_chunks = sorted(
+            zip(scores, retrieved_chunks, strict=False),
+            key=lambda x: x[0],
+            reverse=True,
+        )
 
         query_results = {}
         seen_ids = set()
@@ -100,7 +121,9 @@ def evaluate_retriever(retriever_type: str = retriever_type, split: str = "dev")
 
     # Evaluate reranked results using NDCG@3
     k_values_reranked = [1, 3, 5, 10]
-    ndcg, _map, recall, precision = evaluator.evaluate(qrels, reranked_results, k_values_reranked)
+    ndcg, _map, recall, precision = evaluator.evaluate(
+        qrels, reranked_results, k_values_reranked
+    )
     logging.info("Reranked Retrieval Metrics:")
     logging.info(f"NDCG@3: {ndcg['NDCG@3']}")
 
