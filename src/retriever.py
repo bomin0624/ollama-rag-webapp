@@ -10,7 +10,9 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import CrossEncoder
 
-from src.config import embedding_model, reranker_model, url
+from src.config import DATASET_URL as url
+from src.config import EMBEDDING_MODEL as embedding_model
+from src.config import RERANKER_MODEL as reranker_model
 
 
 def rerank_documents(query: str, documents: list[Document], reranker_model: CrossEncoder, top_n: int) -> list[Document]:
@@ -32,6 +34,26 @@ def rerank_documents(query: str, documents: list[Document], reranker_model: Cros
             break
 
     return unique_docs
+
+
+def build_bm25_documents(collection: dict) -> list[Document]:
+    """Build BM25 documents with a stable metadata id on every document."""
+    documents = collection["documents"]
+    collection_ids = collection["ids"]
+    metadatas = collection["metadatas"] or []
+
+    bm25_documents = []
+    for index, text in enumerate(documents):
+        if not text:
+            continue
+
+        metadata = dict(metadatas[index] or {}) if index < len(metadatas) else {}
+        if "id" not in metadata or metadata["id"] is None:
+            metadata["id"] = collection_ids[index]
+
+        bm25_documents.append(Document(page_content=text, metadata=metadata))
+
+    return bm25_documents
 
 
 class RAGRetriever:
@@ -97,13 +119,7 @@ class HybridRetriever(RAGRetriever):
         # print(f"DEBUG: Total documents: {(collection['documents'][:10])}")
         # print(f"DEBUG: Total metadatas: {(collection['metadatas'][:10])}")
         # Example metadata: {'id': 'MED-335', 'title': '...'}
-        metadata = collection["metadatas"] if collection["metadatas"] else [{}] * len(collection["documents"])
-
-        documents = [
-            Document(page_content=text, metadata=meta)
-            for text, meta in zip(collection["documents"], metadata, strict=False)
-            if text
-        ]
+        documents = build_bm25_documents(collection)
 
         # print(documents[0])
         bm25_retriever = BM25Retriever.from_documents(documents)
