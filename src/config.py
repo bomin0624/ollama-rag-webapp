@@ -1,6 +1,7 @@
 DATASET = "nfcorpus"
 DATASET_URL = (
-    f"https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/{DATASET}.zip"
+    "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/"
+    f"{DATASET}.zip"
 )
 
 SEARCH_K = 200
