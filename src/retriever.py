@@ -13,14 +13,21 @@ from sentence_transformers import CrossEncoder
 from src.config import DATASET_URL, EMBEDDING_MODEL, RERANKER_MODEL
 
 
-def rerank_documents(query: str, documents: list[Document], reranker_model: CrossEncoder, top_n: int) -> list[Document]:
+def rerank_documents(
+    query: str,
+    documents: list[Document],
+    reranker_model: CrossEncoder,
+    top_n: int,
+) -> list[Document]:
     """Using CrossEncoder to rerank the retrieved documents."""
     if not documents:
         return []
     pairs = [(query, doc.page_content) for doc in documents]
     scores = reranker_model.predict(pairs)
     # List of tuples [(score, Document), (score, Document), ...]
-    scored_docs = sorted(zip(scores, documents, strict=False), key=lambda x: x[0], reverse=True)
+    scored_docs = sorted(
+        zip(scores, documents, strict=False), key=lambda x: x[0], reverse=True
+    )
 
     unique_docs = []
     seen_ids = set()
@@ -45,7 +52,9 @@ def build_bm25_documents(collection: dict) -> list[Document]:
         if not text:
             continue
 
-        metadata = dict(metadatas[index] or {}) if index < len(metadatas) else {}
+        metadata = (
+            dict(metadatas[index] or {}) if index < len(metadatas) else {}
+        )
         if "id" not in metadata or metadata["id"] is None:
             metadata["id"] = collection_ids[index]
 
@@ -68,13 +77,19 @@ class RAGRetriever:
             embedding_function=self.embedding,
         )
         # https://zenn.dev/pipon_tech_blog/articles/8cdb27830236c5
-        self.retriever = self.vector_store.as_retriever(search_kwargs={"k": search_k})
+        self.retriever = self.vector_store.as_retriever(
+            search_kwargs={"k": search_k}
+        )
         print(f"Loading reranker model: {reranker_model}")
         self.reranker = CrossEncoder(reranker_model)
 
-    def retrieve_and_rerank(self, query: str, top_n: int = 3) -> list[Document]:
+    def retrieve_and_rerank(
+        self, query: str, top_n: int = 3
+    ) -> list[Document]:
         initial_docs = self.retriever.invoke(query)
-        reranked_docs = rerank_documents(query, initial_docs, self.reranker, top_n=top_n)
+        reranked_docs = rerank_documents(
+            query, initial_docs, self.reranker, top_n=top_n
+        )
         return reranked_docs
 
 
@@ -82,8 +97,13 @@ def initialize_vector_database(db_directory: str):
     """Initialize the vector database if it does not exist."""
     if not os.path.exists(db_directory) or not os.listdir(db_directory):
         print("Vector database not found. Creating new database...")
-        data_path = util.download_and_unzip(DATASET_URL, os.path.join(os.path.dirname(__file__), "..", "datasets"))
-        corpus, queries, qrels = GenericDataLoader(data_path).load(split="test")
+        data_path = util.download_and_unzip(
+            DATASET_URL,
+            os.path.join(os.path.dirname(__file__), "..", "datasets"),
+        )
+        corpus, queries, qrels = GenericDataLoader(data_path).load(
+            split="test"
+        )
         documents = []
 
         for doc_id, content in corpus.items():
@@ -115,7 +135,9 @@ def initialize_vector_database(db_directory: str):
 
 
 class HybridRetriever(RAGRetriever):
-    """A retriever that combines both vector search and sparse search (BM25)."""
+    """
+    A retriever that combines both vector search and sparse search (BM25).
+    """
 
     def __init__(
         self,
@@ -124,13 +146,17 @@ class HybridRetriever(RAGRetriever):
         reranker_model: str,
         search_k: int,
     ):
-        super().__init__(db_directory, embedding_model, reranker_model, search_k)
+        super().__init__(
+            db_directory, embedding_model, reranker_model, search_k
+        )
 
         # Get the raw collection data to use for BM25.
-        # TODO: This loads the entire collection into memory. Consider Elasticsearch or Weaviate.
+        # TODO: This loads the entire collection into memory.
+        # Consider Elasticsearch or Weaviate.
         collection = self.vector_store.get()
         # print(f"DEBUG: Collection keys: {list(collection.keys())}")
-        # ['ids', 'embeddings', 'documents', 'uris', 'included', 'data', 'metadatas']
+        # ['ids', 'embeddings', 'documents', 'uris', 'included', 'data',
+        # 'metadatas']
         # print(f"DEBUG: Total documents: {(collection['documents'][:10])}")
         # print(f"DEBUG: Total metadatas: {(collection['metadatas'][:10])}")
         # Example metadata: {'id': 'MED-335', 'title': '...'}
@@ -146,7 +172,9 @@ class HybridRetriever(RAGRetriever):
 
 
 if __name__ == "__main__":
-    db_directory = os.path.join(os.path.dirname(__file__), "..", "vectordatabase")
+    db_directory = os.path.join(
+        os.path.dirname(__file__), "..", "vectordatabase"
+    )
     initialize_vector_database(db_directory)
     retriever = HybridRetriever(
         db_directory=db_directory,
@@ -157,8 +185,10 @@ if __name__ == "__main__":
 
     # if not os.path.exists(db_directory) or not os.listdir(db_directory):
     #     print("Vector database not found. Creating new database...")
-    #     data_path = util.download_and_unzip(url, os.path.join(os.path.dirname(__file__), "..", "datasets"))
-    #     corpus, queries, qrels = GenericDataLoader(data_path).load(split="test")
+    #     data_path = util.download_and_unzip(url, os.path.join(
+    # os.path.dirname(__file__), "..", "datasets"))
+    #     corpus, queries, qrels = GenericDataLoader(data_path).load(
+    # split="test")
     #     documents = []
 
     #     for doc_id, content in corpus.items():

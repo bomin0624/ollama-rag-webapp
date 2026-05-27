@@ -16,7 +16,10 @@ def configure_logging() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
-        handlers=[logging.FileHandler(log_file_path, mode="a"), logging.StreamHandler()],
+        handlers=[
+            logging.FileHandler(log_file_path, mode="a"),
+            logging.StreamHandler(),
+        ],
     )
 
 
@@ -26,8 +29,8 @@ async def lifespan(app: FastAPI):
     logging.info("Server starting: Initializing vector database...")
     initialize_vector_database(DB_DIRECTORY)
     logging.info("Vector database is ready!")
-
-    yield  # Yield control; FastAPI starts receiving and processing API requests
+    # Yield control; FastAPI starts receiving and processing API requests
+    yield
 
     # --- Shutdown Phase ---
     logging.info("Server shutting down: Cleaning up resources...")

@@ -30,7 +30,10 @@ def analyze_token_length(texts, tokenizer, title):
     # output_dir = os.path.join(os.path.dirname(__file__), "..", "images")
     # os.makedirs(output_dir, exist_ok=True)
 
-    # save_path = os.path.join(output_dir, f"{title}_token_length_distribution.png")
+    # save_path = os.path.join(
+    # output_dir,
+    # f"{title}_token_length_distribution.png"
+    # )
     # plt.savefig(save_path)
     # logging.info(f"Histogram saved to {save_path}")
     # plt.close()
@@ -49,7 +52,9 @@ def main():
         filemode="w",
     )
 
-    data_path = util.download_and_unzip(url, os.path.join(os.path.dirname(__file__), "..", "datasets"))
+    data_path = util.download_and_unzip(
+        url, os.path.join(os.path.dirname(__file__), "..", "datasets")
+    )
     corpus, queries, _ = GenericDataLoader(data_path).load(split="dev")
 
     tokenizer = AutoTokenizer.from_pretrained(embedding_model)
