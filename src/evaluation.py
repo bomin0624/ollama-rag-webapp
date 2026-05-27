@@ -85,8 +85,8 @@ def evaluate_retriever(
         retriever_cache_result[query_id] = retrieved_chunks
         query_results = {}
         for rank, chunk in enumerate(retrieved_chunks):
-            doc_id = chunk.metadata.get("id") if chunk.metadata else None
-            if doc_id and doc_id not in query_results:
+            doc_id = chunk.metadata["id"]
+            if doc_id not in query_results:
                 query_results[doc_id] = 1.0 / (rank + 1)
                 # for BEIR to calculate the metrics, we need to assign a score
                 # to each retrieved document.
