@@ -134,8 +134,8 @@ def evaluate_retriever(
         query_results = {}
         seen_ids = set()
         for score, chunk in scored_chunks:
-            doc_id = chunk.metadata.get("id") if chunk.metadata else None
-            if doc_id and doc_id not in seen_ids:
+            doc_id = chunk.metadata["id"]
+            if doc_id not in seen_ids:
                 query_results[doc_id] = float(score)
                 seen_ids.add(doc_id)
         reranked_results[query_id] = query_results
