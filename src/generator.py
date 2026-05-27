@@ -4,10 +4,10 @@ from functools import lru_cache
 import ollama
 
 from src.config import (
+    EMBEDDING_MODEL,
     GENERATE_MODEL,
+    RERANKER_MODEL,
     SEARCH_K,
-    embedding_model,
-    reranker_model,
 )
 from src.retriever import RAGRetriever, initialize_vector_database
 
@@ -21,8 +21,8 @@ def get_retriever(db_directory: str) -> RAGRetriever:
     """Gets or creates a cached RAGRetriever instance."""
     return RAGRetriever(
         db_directory=db_directory,
-        embedding_model=embedding_model,
-        reranker_model=reranker_model,
+        embedding_model=EMBEDDING_MODEL,
+        reranker_model=RERANKER_MODEL,
         search_k=SEARCH_K,
     )
 

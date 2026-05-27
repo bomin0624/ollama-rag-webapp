@@ -6,7 +6,7 @@ from beir import util
 from beir.datasets.data_loader import GenericDataLoader
 from transformers import AutoTokenizer
 
-from src.config import embedding_model, url
+from src.config import DATASET_URL, EMBEDDING_MODEL
 
 
 def analyze_token_length(texts, tokenizer, title):
@@ -53,11 +53,11 @@ def main():
     )
 
     data_path = util.download_and_unzip(
-        url, os.path.join(os.path.dirname(__file__), "..", "datasets")
+        DATASET_URL, os.path.join(os.path.dirname(__file__), "..", "datasets")
     )
     corpus, queries, _ = GenericDataLoader(data_path).load(split="dev")
 
-    tokenizer = AutoTokenizer.from_pretrained(embedding_model)
+    tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_MODEL)
 
     texts = [content["text"] for content in corpus.values()]
     analyze_token_length(texts, tokenizer, "Corpus")
