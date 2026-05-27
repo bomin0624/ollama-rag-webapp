@@ -17,9 +17,7 @@ from src.config import (
 from src.retriever import HybridRetriever, RAGRetriever, initialize_vector_database
 
 
-def evaluate_retriever(
-    retriever_type: str = RETRIEVER_TYPE, split: str = "dev"
-) -> None:
+def evaluate_retriever(retriever_type: str = RETRIEVER_TYPE, split: str = "dev") -> None:
     """
     Evaluate the retriever performance using Recall@30 for initial retrieval and NDCG@3 for reranked results.
     """
@@ -36,9 +34,7 @@ def evaluate_retriever(
         ],
     )
 
-    data_path = util.download_and_unzip(
-        DATASET_URL, os.path.join(os.path.dirname(__file__), "..", "datasets")
-    )
+    data_path = util.download_and_unzip(DATASET_URL, os.path.join(os.path.dirname(__file__), "..", "datasets"))
     corpus, queries, qrels = GenericDataLoader(data_path).load(split=split)
 
     # print(queries.items()) # {'PLAIN-2': 'Do Cholesterol Statin Drugs Cause Breast Cancer?'}
@@ -77,17 +73,13 @@ def evaluate_retriever(
                 query_results[chunk.metadata["id"]] = 1.0 / (
                     rank + 1
                 )  # for BEIR to calculate the metrics, we need to assign a score to each retrieved document.
-        query_results = dict(
-            sorted(query_results.items(), key=lambda x: x[1], reverse=True)[:SEARCH_K]
-        )
+        query_results = dict(sorted(query_results.items(), key=lambda x: x[1], reverse=True)[:SEARCH_K])
         initial_results[query_id] = query_results
 
     # Evaluate initial retrieval using Recall@30
     evaluator = EvaluateRetrieval()
     k_values_initial = [1, 5, 10, 30]
-    ndcg, _map, recall, precision = evaluator.evaluate(
-        qrels, initial_results, k_values_initial
-    )
+    ndcg, _map, recall, precision = evaluator.evaluate(qrels, initial_results, k_values_initial)
     # print(evaluator.evaluate(qrels, initial_results, k_values_initial))
     # ({'NDCG@1': 0.41796, 'NDCG@5': 0.3661, 'NDCG@10': 0.2739, 'NDCG@30': 0.20669},
     # {'MAP@1': 0.05611, 'MAP@5': 0.10866, 'MAP@10': 0.10866, 'MAP@30': 0.10866},
@@ -121,9 +113,7 @@ def evaluate_retriever(
 
     # Evaluate reranked results using NDCG@3
     k_values_reranked = [1, 3, 5, 10]
-    ndcg, _map, recall, precision = evaluator.evaluate(
-        qrels, reranked_results, k_values_reranked
-    )
+    ndcg, _map, recall, precision = evaluator.evaluate(qrels, reranked_results, k_values_reranked)
     logging.info("Reranked Retrieval Metrics:")
     logging.info(f"NDCG@3: {ndcg['NDCG@3']}")
 

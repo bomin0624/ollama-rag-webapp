@@ -13,18 +13,14 @@ from sentence_transformers import CrossEncoder
 from src.config import DATASET_URL, EMBEDDING_MODEL, RERANKER_MODEL
 
 
-def rerank_documents(
-    query: str, documents: list[Document], reranker_model: CrossEncoder, top_n: int
-) -> list[Document]:
+def rerank_documents(query: str, documents: list[Document], reranker_model: CrossEncoder, top_n: int) -> list[Document]:
     """Using CrossEncoder to rerank the retrieved documents."""
     if not documents:
         return []
     pairs = [(query, doc.page_content) for doc in documents]
     scores = reranker_model.predict(pairs)
     # List of tuples [(score, Document), (score, Document), ...]
-    scored_docs = sorted(
-        zip(scores, documents, strict=False), key=lambda x: x[0], reverse=True
-    )
+    scored_docs = sorted(zip(scores, documents, strict=False), key=lambda x: x[0], reverse=True)
 
     unique_docs = []
     seen_ids = set()
@@ -78,9 +74,7 @@ class RAGRetriever:
 
     def retrieve_and_rerank(self, query: str, top_n: int = 3) -> list[Document]:
         initial_docs = self.retriever.invoke(query)
-        reranked_docs = rerank_documents(
-            query, initial_docs, self.reranker, top_n=top_n
-        )
+        reranked_docs = rerank_documents(query, initial_docs, self.reranker, top_n=top_n)
         return reranked_docs
 
 
@@ -88,9 +82,7 @@ def initialize_vector_database(db_directory: str):
     """Initialize the vector database if it does not exist."""
     if not os.path.exists(db_directory) or not os.listdir(db_directory):
         print("Vector database not found. Creating new database...")
-        data_path = util.download_and_unzip(
-            DATASET_URL, os.path.join(os.path.dirname(__file__), "..", "datasets")
-        )
+        data_path = util.download_and_unzip(DATASET_URL, os.path.join(os.path.dirname(__file__), "..", "datasets"))
         corpus, queries, qrels = GenericDataLoader(data_path).load(split="test")
         documents = []
 
