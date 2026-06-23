@@ -19,3 +19,5 @@ log/
 *.pickle
 
 ollama
+
+.vscode

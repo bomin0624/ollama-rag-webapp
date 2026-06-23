@@ -1,3 +1,4 @@
+import json
 import os
 
 from beir import util
@@ -15,18 +16,18 @@ from src.config import DATASET_URL, EMBEDDING_MODEL, RERANKER_MODEL
 
 def rerank_documents(
     query: str,
-    documents: list[Document],
+    retrieved_chunks: list[Document],
     reranker_model: CrossEncoder,
     top_n: int,
 ) -> list[Document]:
-    """Using CrossEncoder to rerank the retrieved documents."""
-    if not documents:
+    """Rerank retrieved chunks and keep the top chunk for each unique document."""
+    if not retrieved_chunks:
         return []
-    pairs = [(query, doc.page_content) for doc in documents]
+    pairs = [(query, chunk.page_content) for chunk in retrieved_chunks]
     scores = reranker_model.predict(pairs)
     # List of tuples [(score, Document), (score, Document), ...]
     scored_docs = sorted(
-        zip(scores, documents, strict=False), key=lambda x: x[0], reverse=True
+        zip(scores, retrieved_chunks, strict=False), key=lambda x: x[0], reverse=True
     )
 
     unique_docs = []
@@ -93,18 +94,22 @@ class RAGRetriever:
         return reranked_docs
 
 
-def initialize_vector_database(db_directory: str):
+def initialize_vector_database(db_directory: str) -> None:
     """Initialize the vector database if it does not exist."""
     if not os.path.exists(db_directory) or not os.listdir(db_directory):
         print("Vector database not found. Creating new database...")
-        data_path = util.download_and_unzip(
-            DATASET_URL,
-            os.path.join(os.path.dirname(__file__), "..", "datasets"),
-        )
-        corpus, queries, qrels = GenericDataLoader(data_path).load(
-            split="test"
-        )
+        data_path = util.download_and_unzip(DATASET_URL, os.path.join(os.path.dirname(__file__), "..", "datasets"))
+        # corpus, queries, qrels = GenericDataLoader(data_path).load("test")
+        corpus_path = os.path.join(data_path, "corpus.jsonl")
         documents = []
+        
+        with open(corpus_path, "r", encoding="utf-8") as f:
+            for line in f:
+                data = json.loads(line)
+                documents.append(Document(page_content=data["title"] +"."+ " " + data["text"], 
+                                        metadata={"title": data.get("title", ""),
+                                                    "id": data["_id"]}))
+
 
         for doc_id, content in corpus.items():
             documents.append(
