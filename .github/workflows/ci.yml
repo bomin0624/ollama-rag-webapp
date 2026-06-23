@@ -29,6 +29,13 @@ jobs:
 
       - name: Install dependencies
         run: make install
+      
+      - name: Show debug info
+        run: |
+          git rev-parse HEAD
+          uv run ruff --version
+          sed -n '1,20p' src/generator.py
+          sed -n '1,130p' src/retriever.py
 
       - name: Run checks
         run: make ci
