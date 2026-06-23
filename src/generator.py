@@ -2,6 +2,7 @@ import os
 from functools import lru_cache
 
 import ollama
+
 from src.config import (
     EMBEDDING_MODEL,
     GENERATE_MODEL,

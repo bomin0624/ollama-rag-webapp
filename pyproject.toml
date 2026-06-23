@@ -42,3 +42,4 @@ select = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
+known-third-party = ["ollama"]
