@@ -28,3 +28,8 @@ RETRIEVER_TYPE = "hybrid"  # Options: "hybrid" or "vector"
 # Dimensionality to truncate embeddings to for
 # efficiency in storage and retrieval
 EMBED_TRUNCATE_DIM = 256
+
+# Chunking parameters used when building the vector database.
+# max_length * 4 = chunk_size; chunk_overlap = chunk_size * 0.10 ~ 0.25
+CHUNK_SIZE = 2048
+CHUNK_OVERLAP = 300

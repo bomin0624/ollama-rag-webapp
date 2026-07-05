@@ -1,21 +1,10 @@
-import json
-from pathlib import Path
 
-from beir import util
 from langchain_chroma import Chroma
 from langchain_classic.retrievers import EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import CrossEncoder
 
-from src.config import (
-    DATASET_URL,
-    DATASETS_DIR,
-    EMBEDDING_MODEL,
-    RERANKER_MODEL,
-    VECTOR_DB_DIR,
-)
 from src.retriever.utils import (
     build_bm25_documents,
     build_embedding,
@@ -51,49 +40,6 @@ class RAGRetriever:
             query, initial_docs, self.reranker, top_n=top_n
         )
         return reranked_docs
-
-
-def initialize_vector_database(db_directory: str) -> None:
-    """Initialize the vector database if it does not exist."""
-    db_path = Path(db_directory)
-    if not db_path.exists() or not any(db_path.iterdir()):
-        print("Vector database not found. Creating new database...")
-        data_path = util.download_and_unzip(DATASET_URL, str(DATASETS_DIR))
-        # corpus, queries, qrels = GenericDataLoader(data_path).load("test")
-        corpus_path = Path(data_path) / "corpus.jsonl"
-        documents = []
-
-        with corpus_path.open(encoding="utf-8") as f:
-            for line in f:
-                data = json.loads(line)
-                documents.append(
-                    Document(
-                        page_content=data["title"] + "." + " " + data["text"],
-                        metadata={
-                            "title": data.get("title", ""),
-                            "id": data["_id"],
-                        },
-                    )
-                )
-
-        # max_length * 4 = chunk_size
-        # chunk_overlap = chunk_size * 0.10 ~ 0.25
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=2048,
-            chunk_overlap=300,
-        )
-
-        chunks = text_splitter.split_documents(documents)
-        print(f"Number of chunks: {len(chunks)}")
-
-        embedding = build_embedding(EMBEDDING_MODEL)
-        Chroma.from_documents(
-            documents=chunks,
-            embedding=embedding,
-            persist_directory=db_directory,
-            collection_metadata={"hnsw:space": "cosine"},
-        )
-        print(f"Vector store created and persisted to {db_directory}")
 
 
 class HybridRetriever(RAGRetriever):
@@ -133,63 +79,63 @@ class HybridRetriever(RAGRetriever):
         )  # Reciprocal Rank Fusion (RRF) Algorithm
 
 
-if __name__ == "__main__":
-    db_directory = str(VECTOR_DB_DIR)
-    initialize_vector_database(db_directory)
-    retriever = HybridRetriever(
-        db_directory=db_directory,
-        embedding_model=EMBEDDING_MODEL,
-        reranker_model=RERANKER_MODEL,
-        search_k=100,
-    )
+# if __name__ == "__main__":
+#     db_directory = str(VECTOR_DB_DIR)
+#     initialize_vector_database(db_directory)
+#     retriever = HybridRetriever(
+#         db_directory=db_directory,
+#         embedding_model=EMBEDDING_MODEL,
+#         reranker_model=RERANKER_MODEL,
+#         search_k=100,
+#     )
 
-    # if not os.path.exists(db_directory) or not os.listdir(db_directory):
-    #     print("Vector database not found. Creating new database...")
-    #     data_path = util.download_and_unzip(url, os.path.join(
-    # os.path.dirname(__file__), "..", "datasets"))
-    #     corpus, queries, qrels = GenericDataLoader(data_path).load(
-    # split="test")
-    #     documents = []
+# if not os.path.exists(db_directory) or not os.listdir(db_directory):
+#     print("Vector database not found. Creating new database...")
+#     data_path = util.download_and_unzip(url, os.path.join(
+# os.path.dirname(__file__), "..", "datasets"))
+#     corpus, queries, qrels = GenericDataLoader(data_path).load(
+# split="test")
+#     documents = []
 
-    #     for doc_id, content in corpus.items():
-    #         documents.append(Document(page_content=content["text"],
-    #                                 metadata={"title": content["title"],
-    #                                             "id": doc_id}))
+#     for doc_id, content in corpus.items():
+#         documents.append(Document(page_content=content["text"],
+#                                 metadata={"title": content["title"],
+#                                             "id": doc_id}))
 
-    #     # max_length * 4 = chunk_size
-    #     # chunk_overlap = chunk_size * 0.10 ~ 0.25
-    #     text_splitter = RecursiveCharacterTextSplitter(
-    #         chunk_size=2048,
-    #         chunk_overlap=300,
-    #     )
+#     # max_length * 4 = chunk_size
+#     # chunk_overlap = chunk_size * 0.10 ~ 0.25
+#     text_splitter = RecursiveCharacterTextSplitter(
+#         chunk_size=2048,
+#         chunk_overlap=300,
+#     )
 
-    #     chunks = text_splitter.split_documents(documents)
-    #     print(f"Number of chunks: {len(chunks)}")
+#     chunks = text_splitter.split_documents(documents)
+#     print(f"Number of chunks: {len(chunks)}")
 
-    #     embedding = HuggingFaceEmbeddings(model_name=embedding_model)
-    #     vector_store = Chroma.from_documents(
-    #         documents=chunks,
-    #         embedding=embedding,
-    #         persist_directory=db_directory,
-    #     )
-    #     print(f"Vector store created and persisted to {db_directory}")
-    # else:
-    #     print(f"Using existing vector database at {db_directory}\n")
+#     embedding = HuggingFaceEmbeddings(model_name=embedding_model)
+#     vector_store = Chroma.from_documents(
+#         documents=chunks,
+#         embedding=embedding,
+#         persist_directory=db_directory,
+#     )
+#     print(f"Vector store created and persisted to {db_directory}")
+# else:
+#     print(f"Using existing vector database at {db_directory}\n")
 
-    # retriever = RAGRetriever(
-    #     db_directory=db_directory,
-    #     embedding_model=embedding_model,
-    #     reranker_model=reranker_model,
-    # )
+# retriever = RAGRetriever(
+#     db_directory=db_directory,
+#     embedding_model=embedding_model,
+#     reranker_model=reranker_model,
+# )
 
-    # query = "Living Longer by Reducing Leucine Intake"
+# query = "Living Longer by Reducing Leucine Intake"
 
-    # retrieved_docs = retriever.retrieve_and_rerank(query)
-    # print(f"Searching for query: {query}")
-    # print("-----------------------------------------")
-    # print(f"Found {len(retrieved_docs)} documents:")
+# retrieved_docs = retriever.retrieve_and_rerank(query)
+# print(f"Searching for query: {query}")
+# print("-----------------------------------------")
+# print(f"Found {len(retrieved_docs)} documents:")
 
-    # for idx, doc in enumerate(retrieved_docs):
-    #     print(f"\n--- Document {idx + 1} ---")
-    #     print(f"Content: {doc.page_content[:250]}...")
-    #     print(f"Metadata: {doc.metadata}")
+# for idx, doc in enumerate(retrieved_docs):
+#     print(f"\n--- Document {idx + 1} ---")
+#     print(f"Content: {doc.page_content[:250]}...")
+#     print(f"Metadata: {doc.metadata}")

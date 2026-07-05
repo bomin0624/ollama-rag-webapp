@@ -9,7 +9,8 @@ from src.config import (
     SEARCH_K,
     VECTOR_DB_DIR,
 )
-from src.retriever.retriever import RAGRetriever, initialize_vector_database
+from src.retriever.retriever import RAGRetriever
+from src.retriever.utils import initialize_vector_database
 
 DB_DIRECTORY = str(VECTOR_DB_DIR)
 

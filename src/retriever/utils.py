@@ -1,8 +1,21 @@
+import json
+from pathlib import Path
+
+from beir import util
+from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import CrossEncoder
 
-from src.config import EMBED_TRUNCATE_DIM
+from src.config import (
+    CHUNK_OVERLAP,
+    CHUNK_SIZE,
+    DATASET_URL,
+    DATASETS_DIR,
+    EMBED_TRUNCATE_DIM,
+    EMBEDDING_MODEL,
+)
 
 
 def build_bm25_documents(collection: dict) -> list[Document]:
@@ -69,3 +82,45 @@ def build_embedding(model_name: str) -> HuggingFaceEmbeddings:
         encode_kwargs={"normalize_embeddings": True},
     )
 
+
+def initialize_vector_database(db_directory: str) -> None:
+    """Initialize the vector database if it does not exist."""
+    db_path = Path(db_directory)
+    if not db_path.exists() or not any(db_path.iterdir()):
+        print("Vector database not found. Creating new database...")
+        data_path = util.download_and_unzip(DATASET_URL, str(DATASETS_DIR))
+        # corpus, queries, qrels = GenericDataLoader(data_path).load("test")
+        corpus_path = Path(data_path) / "corpus.jsonl"
+        documents = []
+
+        with corpus_path.open(encoding="utf-8") as f:
+            for line in f:
+                data = json.loads(line)
+                documents.append(
+                    Document(
+                        page_content=data["title"] + "." + " " + data["text"],
+                        metadata={
+                            "title": data.get("title", ""),
+                            "id": data["_id"],
+                        },
+                    )
+                )
+
+        # max_length * 4 = chunk_size
+        # chunk_overlap = chunk_size * 0.10 ~ 0.25
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=CHUNK_SIZE,
+            chunk_overlap=CHUNK_OVERLAP,
+        )
+
+        chunks = text_splitter.split_documents(documents)
+        print(f"Number of chunks: {len(chunks)}")
+
+        embedding = build_embedding(EMBEDDING_MODEL)
+        Chroma.from_documents(
+            documents=chunks,
+            embedding=embedding,
+            persist_directory=db_directory,
+            collection_metadata={"hnsw:space": "cosine"},
+        )
+        print(f"Vector store created and persisted to {db_directory}")
