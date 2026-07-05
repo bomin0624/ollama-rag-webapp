@@ -1,3 +1,12 @@
+from pathlib import Path
+
+# Project paths, all derived from the repository root so callers never have to
+# count ".." / parents[N] levels relative to their own file location.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+VECTOR_DB_DIR = PROJECT_ROOT / "vectordatabase"
+DATASETS_DIR = PROJECT_ROOT / "datasets"
+LOG_DIR = PROJECT_ROOT / "log"
+
 DATASET = "nfcorpus"
 DATASET_URL = (
     "https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/"

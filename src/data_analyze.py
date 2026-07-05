@@ -1,12 +1,11 @@
 import logging
-import os
 
 import numpy as np
 from beir import util
 from beir.datasets.data_loader import GenericDataLoader
 from transformers import AutoTokenizer
 
-from src.config import DATASET_URL, EMBEDDING_MODEL
+from src.config import DATASET_URL, DATASETS_DIR, EMBEDDING_MODEL, LOG_DIR
 
 
 def analyze_token_length(texts, tokenizer, title):
@@ -40,10 +39,8 @@ def analyze_token_length(texts, tokenizer, title):
 
 
 def main():
-    log_dir = os.path.join(os.path.dirname(__file__), "..", "log")
-    log_file_path = os.path.join(log_dir, "data_analyze_nfcorpus.log")
-
-    os.makedirs(log_dir, exist_ok=True)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    log_file_path = str(LOG_DIR / "data_analyze_nfcorpus.log")
 
     logging.basicConfig(
         level=logging.INFO,
@@ -52,9 +49,7 @@ def main():
         filemode="w",
     )
 
-    data_path = util.download_and_unzip(
-        DATASET_URL, os.path.join(os.path.dirname(__file__), "..", "datasets")
-    )
+    data_path = util.download_and_unzip(DATASET_URL, str(DATASETS_DIR))
     corpus, queries, _ = GenericDataLoader(data_path).load(split="dev")
 
     tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_MODEL)

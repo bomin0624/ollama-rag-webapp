@@ -5,11 +5,11 @@ startup phase, and exposes the API routes.
 """
 
 import logging
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from src.config import LOG_DIR
 from src.generator import (
     DB_DIRECTORY,
     get_retriever,
@@ -20,9 +20,8 @@ from src.routes import router
 
 def configure_logging() -> None:
     """Log to both the console and log/webapp.log."""
-    log_dir = os.path.join(os.path.dirname(__file__), "log")
-    os.makedirs(log_dir, exist_ok=True)
-    log_file_path = os.path.join(log_dir, "webapp.log")
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    log_file_path = LOG_DIR / "webapp.log"
 
     logging.basicConfig(
         level=logging.INFO,

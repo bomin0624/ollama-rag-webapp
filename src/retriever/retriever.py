@@ -1,5 +1,5 @@
 import json
-import os
+from pathlib import Path
 
 from beir import util
 from langchain_chroma import Chroma
@@ -9,7 +9,13 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import CrossEncoder
 
-from src.config import DATASET_URL, EMBEDDING_MODEL, RERANKER_MODEL
+from src.config import (
+    DATASET_URL,
+    DATASETS_DIR,
+    EMBEDDING_MODEL,
+    RERANKER_MODEL,
+    VECTOR_DB_DIR,
+)
 from src.retriever.utils import (
     build_bm25_documents,
     build_embedding,
@@ -49,17 +55,15 @@ class RAGRetriever:
 
 def initialize_vector_database(db_directory: str) -> None:
     """Initialize the vector database if it does not exist."""
-    if not os.path.exists(db_directory) or not os.listdir(db_directory):
+    db_path = Path(db_directory)
+    if not db_path.exists() or not any(db_path.iterdir()):
         print("Vector database not found. Creating new database...")
-        data_path = util.download_and_unzip(
-            DATASET_URL,
-            os.path.join(os.path.dirname(__file__), "..", "..", "datasets"),
-        )
+        data_path = util.download_and_unzip(DATASET_URL, str(DATASETS_DIR))
         # corpus, queries, qrels = GenericDataLoader(data_path).load("test")
-        corpus_path = os.path.join(data_path, "corpus.jsonl")
+        corpus_path = Path(data_path) / "corpus.jsonl"
         documents = []
 
-        with open(corpus_path, encoding="utf-8") as f:
+        with corpus_path.open(encoding="utf-8") as f:
             for line in f:
                 data = json.loads(line)
                 documents.append(
@@ -130,9 +134,7 @@ class HybridRetriever(RAGRetriever):
 
 
 if __name__ == "__main__":
-    db_directory = os.path.join(
-        os.path.dirname(__file__), "..", "..", "vectordatabase"
-    )
+    db_directory = str(VECTOR_DB_DIR)
     initialize_vector_database(db_directory)
     retriever = HybridRetriever(
         db_directory=db_directory,

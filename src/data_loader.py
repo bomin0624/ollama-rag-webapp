@@ -1,13 +1,9 @@
-import os
-
 from beir import util
 from beir.datasets.data_loader import GenericDataLoader
 
-from src.config import DATASET_URL
+from src.config import DATASET_URL, DATASETS_DIR
 
-data_path = util.download_and_unzip(
-    DATASET_URL, os.path.join(os.path.dirname(__file__), "..", "datasets")
-)
+data_path = util.download_and_unzip(DATASET_URL, str(DATASETS_DIR))
 corpus, queries, qrels = GenericDataLoader(data_path).load(split="dev")
 
 print(type(corpus), type(queries), type(qrels))

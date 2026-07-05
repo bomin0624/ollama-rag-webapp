@@ -1,6 +1,5 @@
 import argparse
 import logging
-import os
 
 from beir import util
 from beir.datasets.data_loader import GenericDataLoader
@@ -9,10 +8,13 @@ from tqdm import tqdm
 
 from src.config import (
     DATASET_URL,
+    DATASETS_DIR,
     EMBEDDING_MODEL,
+    LOG_DIR,
     RERANKER_MODEL,
     RETRIEVER_TYPE,
     SEARCH_K,
+    VECTOR_DB_DIR,
 )
 from src.retriever.retriever import (
     HybridRetriever,
@@ -28,11 +30,8 @@ def evaluate_retriever(
     Evaluate the retriever performance using Recall@30
     for initial retrieval and NDCG@3 for reranked results.
     """
-    log_dir = os.path.join(os.path.dirname(__file__), "..", "log")
-    os.makedirs(log_dir, exist_ok=True)
-    log_file_path = os.path.join(
-        log_dir, f"nfcorpus_{retriever_type}_{split}.log"
-    )
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    log_file_path = str(LOG_DIR / f"nfcorpus_{retriever_type}_{split}.log")
 
     logging.basicConfig(
         level=logging.INFO,
@@ -43,17 +42,13 @@ def evaluate_retriever(
         ],
     )
 
-    data_path = util.download_and_unzip(
-        DATASET_URL, os.path.join(os.path.dirname(__file__), "..", "datasets")
-    )
+    data_path = util.download_and_unzip(DATASET_URL, str(DATASETS_DIR))
     corpus, queries, qrels = GenericDataLoader(data_path).load(split=split)
 
     # print(queries.items()) # {'PLAIN-2':
     # 'Do Cholesterol Statin Drugs Cause Breast Cancer?'}
     # Ensure the vector database is initialized before evaluation
-    db_directory = os.path.join(
-        os.path.dirname(__file__), "..", "vectordatabase"
-    )
+    db_directory = str(VECTOR_DB_DIR)
     initialize_vector_database(db_directory)
 
     if retriever_type == "hybrid":
