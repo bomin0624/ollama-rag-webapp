@@ -9,7 +9,7 @@ from src.config import (
     RERANKER_MODEL,
     SEARCH_K,
 )
-from src.retriever import RAGRetriever, initialize_vector_database
+from src.retriever.retriever import RAGRetriever, initialize_vector_database
 
 DB_DIRECTORY = os.path.join(os.path.dirname(__file__), "..", "vectordatabase")
 

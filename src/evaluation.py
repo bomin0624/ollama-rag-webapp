@@ -14,7 +14,7 @@ from src.config import (
     RETRIEVER_TYPE,
     SEARCH_K,
 )
-from src.retriever import (
+from src.retriever.retriever import (
     HybridRetriever,
     RAGRetriever,
     initialize_vector_database,

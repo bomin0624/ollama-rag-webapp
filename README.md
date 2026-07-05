@@ -54,6 +54,23 @@ flowchart TD
 
 If the embedding model or embedding dimension changes, delete or rebuild `vectordatabase/`. Chroma collections require a consistent vector dimension.
 
+## Rebuilding the Vector Database
+
+The vector database is only built once, when `vectordatabase/` is missing or empty. After that, the persisted embeddings are reused on every startup. You must rebuild it whenever anything that changes the stored vectors changes, for example:
+
+- Changing `EMBEDDING_MODEL` in `src/config.py`.
+- Changing `EMBED_TRUNCATE_DIM` (the Matryoshka truncate dimension), since this changes the vector dimension.
+- Changing the dataset (`DATASET`) or the chunking settings.
+
+To rebuild, delete the existing database and start the app again. The lifespan startup regenerates the embeddings and writes a fresh collection:
+
+```bash
+rm -rf vectordatabase/
+make run
+```
+
+> **Note:** Rebuilding re-embeds the whole corpus, so the first startup after a rebuild takes longer. A mismatched vector dimension (for example, querying a 256-dim collection with a 1024-dim embedding) raises a Chroma dimension error, which is the signal that a rebuild is needed.
+
 ## Retriever Types
 
 Two retriever types are currently supported:
@@ -65,23 +82,41 @@ Configure this with `RETRIEVER_TYPE` in `src/config.py`.
 
 ## Running the App
 
-Install dependencies:
+### Prerequisites
+
+- Python 3.12 (see `.python-version`)
+- [uv](https://github.com/astral-sh/uv) for dependency management
+- Docker for the Ollama container
+
+### 1. Install dependencies
 
 ```bash
 make install
 ```
 
-Start Ollama:
+### 2. Start Ollama
 
 ```bash
 docker compose up -d ollama
 ```
 
-Start the FastAPI app:
+> **Note:** `docker-compose.yml` reserves an NVIDIA GPU by default. If you do not have a GPU, remove or comment out the `deploy:` block before starting the container.
+
+### 3. Pull the generation model
+
+The app uses `GENERATE_MODEL` from `src/config.py` (default `llama3.1`). Pull it into the Ollama container before the first query:
+
+```bash
+docker exec -it ollama ollama pull llama3.1
+```
+
+### 4. Start the FastAPI app
 
 ```bash
 make run
 ```
+
+> On the first run, the lifespan startup builds the vector database when `vectordatabase/` is missing or empty: it downloads the BEIR dataset, generates embeddings, and writes them to Chroma. This can take a while.
 
 By default, the API server runs at:
 
@@ -128,5 +163,4 @@ Evaluation logs are written to `log/`.
 
 - Add frontend for the RAG web app.
 - Add RAGAS evaluation.
-- Add Matryoshka embedding support, including configurable truncate dimension and vector database rebuild guidance.
 - Add tests for retriever initialization and query route behavior.
