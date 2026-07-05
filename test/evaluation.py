@@ -19,8 +19,8 @@ from src.config import (
 from src.retriever.retriever import (
     HybridRetriever,
     RAGRetriever,
-    initialize_vector_database,
 )
+from src.retriever.utils import initialize_vector_database
 
 
 def evaluate_retriever(
