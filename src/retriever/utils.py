@@ -15,6 +15,8 @@ from src.config import (
     DATASETS_DIR,
     EMBED_TRUNCATE_DIM,
     EMBEDDING_MODEL,
+    RERANK_BATCH_SIZE,
+    RERANK_TOP_K,
 )
 
 
@@ -51,8 +53,10 @@ def rerank_documents(
     """
     if not retrieved_chunks:
         return []
+    # Only score the top candidates; reranking cost is O(candidates) per query.
+    retrieved_chunks = retrieved_chunks[:RERANK_TOP_K]
     pairs = [(query, chunk.page_content) for chunk in retrieved_chunks]
-    scores = reranker_model.predict(pairs)
+    scores = reranker_model.predict(pairs, batch_size=RERANK_BATCH_SIZE)
     # List of tuples [(score, Document), (score, Document), ...]
     scored_docs = sorted(
         zip(scores, retrieved_chunks, strict=False),

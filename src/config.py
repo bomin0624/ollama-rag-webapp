@@ -13,7 +13,21 @@ DATASET_URL = (
     f"{DATASET}.zip"
 )
 
+# Number of candidates fetched by the initial retriever. Kept large for recall.
 SEARCH_K = 200
+
+# Number of top candidates actually scored by the cross-encoder reranker.
+# Initial retrieval fetches SEARCH_K for recall; the reranker only scores the
+# top RERANK_TOP_K of them to keep latency bounded (cross-encoder cost is
+# O(candidates) per query).
+RERANK_TOP_K = 50
+
+# Batch size for the cross-encoder reranker's predict() call. Larger values use
+# more GPU memory but keep the GPU better saturated.
+RERANK_BATCH_SIZE = 64
+
+# Number of final documents returned after reranking.
+RERANK_RETURN_N = 3
 
 EMBEDDING_MODEL = "mixedbread-ai/mxbai-embed-large-v1"
 

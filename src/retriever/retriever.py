@@ -4,6 +4,7 @@ from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 from sentence_transformers import CrossEncoder
 
+from src.config import RERANK_RETURN_N
 from src.retriever.utils import (
     build_bm25_documents,
     build_embedding,
@@ -32,7 +33,7 @@ class RAGRetriever:
         self.reranker = CrossEncoder(reranker_model)
 
     def retrieve_and_rerank(
-        self, query: str, top_n: int = 3
+        self, query: str, top_n: int = RERANK_RETURN_N
     ) -> list[Document]:
         initial_docs = self.retriever.invoke(query)
         reranked_docs = rerank_documents(
