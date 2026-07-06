@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 # Project paths, all derived from the repository root so callers never have to
@@ -40,8 +41,9 @@ GENERATE_MODEL = "llama3.1"  # Model name for generation
 RETRIEVER_TYPE = "hybrid"  # Options: "hybrid" or "vector"
 
 # Dimensionality to truncate embeddings to for
-# efficiency in storage and retrieval
-EMBED_TRUNCATE_DIM = 512
+# efficiency in storage and retrieval. Overridable via the EMBED_TRUNCATE_DIM
+# environment variable (e.g. `make evaluate DIM=256`).
+EMBED_TRUNCATE_DIM = int(os.environ.get("EMBED_TRUNCATE_DIM", "512"))
 
 # Chunking parameters used when building the vector database.
 # max_length * 4 = chunk_size; chunk_overlap = chunk_size * 0.10 ~ 0.25

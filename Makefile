@@ -5,6 +5,7 @@ HOST ?= 0.0.0.0
 PORT ?= 8000
 RETRIEVER ?= hybrid
 SPLIT ?= dev
+DIM ?= 512
 
 .PHONY: help install format format-check lint test evaluate ci run
 
@@ -15,7 +16,7 @@ help:
 	@printf "  format-check  Check formatting and lint rules with ruff\n"
 	@printf "  lint          Run ruff linter\n"
 	@printf "  test          Run tests if present\n"
-	@printf "  evaluate      Run retriever evaluation (RETRIEVER=hybrid SPLIT=dev)\n"
+	@printf "  evaluate      Run retriever evaluation (RETRIEVER=hybrid SPLIT=dev DIM=512)\n"
 	@printf "  ci            Run all CI checks\n"
 	@printf "  run           Start the FastAPI app with uvicorn\n"
 
@@ -41,7 +42,7 @@ test:
 	fi
 
 evaluate:
-	$(UV) run $(PYTHON) -m test.evaluation --retriever $(RETRIEVER) --split $(SPLIT)
+	EMBED_TRUNCATE_DIM=$(DIM) $(UV) run $(PYTHON) -m test.evaluation --retriever $(RETRIEVER) --split $(SPLIT)
 
 ci: format-check test
 

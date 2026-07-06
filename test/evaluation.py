@@ -1,5 +1,6 @@
 import argparse
 import logging
+import time
 
 from beir import util
 from beir.datasets.data_loader import GenericDataLoader
@@ -9,6 +10,7 @@ from tqdm import tqdm
 from src.config import (
     DATASET_URL,
     DATASETS_DIR,
+    EMBED_TRUNCATE_DIM,
     EMBEDDING_MODEL,
     LOG_DIR,
     RERANK_BATCH_SIZE,
@@ -73,6 +75,7 @@ def evaluate_retriever(
     logging.info(f"--- Evaluating Initial Retrieval (Top {SEARCH_K}) ---")
     initial_results = {}
     retriever_cache_result = {}
+    retrieval_start = time.perf_counter()
     for query_id, query_text in tqdm(
         queries.items(), desc="Initial Retriever"
     ):
@@ -93,6 +96,7 @@ def evaluate_retriever(
             ]
         )
         initial_results[query_id] = query_results
+    retrieval_time = time.perf_counter() - retrieval_start
 
     # Evaluate initial retrieval using Recall@30
     evaluator = EvaluateRetrieval()
@@ -113,6 +117,7 @@ def evaluate_retriever(
     logging.info(f"Recall@30: {recall['Recall@30']}")
 
     reranked_results = {}
+    rerank_start = time.perf_counter()
     for query_id, query_text in tqdm(queries.items(), desc="Reranking"):
         retrieved_chunks = retriever_cache_result[query_id][:RERANK_TOP_K]
         if not retrieved_chunks:
@@ -138,6 +143,7 @@ def evaluate_retriever(
                 query_results[doc_id] = float(score)
                 seen_ids.add(doc_id)
         reranked_results[query_id] = query_results
+    rerank_time = time.perf_counter() - rerank_start
 
     # Evaluate reranked results using NDCG@3
     k_values_reranked = [1, 3, 5, 10]
@@ -146,6 +152,21 @@ def evaluate_retriever(
     )
     logging.info("Reranked Retrieval Metrics:")
     logging.info(f"NDCG@3: {ndcg['NDCG@3']}")
+
+    num_queries = len(queries)
+    logging.info("--- Embedding Dimension & Timing ---")
+    logging.info(f"Embedding truncate dim: {EMBED_TRUNCATE_DIM}")
+    logging.info(
+        f"Initial retrieval time: {retrieval_time:.2f}s "
+        f"total, {retrieval_time / num_queries * 1000:.2f}ms/query "
+        f"({num_queries} queries)"
+    )
+    logging.info(
+        f"Reranking time: {rerank_time:.2f}s "
+        f"total, {rerank_time / num_queries * 1000:.2f}ms/query "
+        f"({num_queries} queries)"
+    )
+    logging.info(f"Total time: {retrieval_time + rerank_time:.2f}s")
 
 
 if __name__ == "__main__":

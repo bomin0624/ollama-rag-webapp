@@ -146,17 +146,21 @@ Run retriever evaluation:
 make evaluate
 ```
 
-By default this runs the `hybrid` retriever on the `dev` split. Override the retriever or split with variables:
+By default this runs the `hybrid` retriever on the `dev` split with the embedding truncate dimension from `config.py` (`512`). Override the retriever, split, or dimension with variables:
 
 ```bash
-make evaluate RETRIEVER=vector SPLIT=test
+make evaluate RETRIEVER=vector SPLIT=test DIM=256
 ```
+
+`DIM` sets `EMBED_TRUNCATE_DIM` for the run, so the vector database must have been built at the same dimension — otherwise the dimension pre-check raises a mismatch error and you need to rebuild `vectordatabase/` first (see [Rebuilding the vector database](#rebuilding-the-vector-database)).
 
 Or invoke the module directly:
 
 ```bash
-uv run python -m test.evaluation --retriever hybrid --split dev
+EMBED_TRUNCATE_DIM=256 uv run python -m test.evaluation --retriever hybrid --split dev
 ```
+
+At the end of a run the evaluation also reports the embedding dimension used and the initial-retrieval and reranking timings (total and per-query).
 
 Available retrievers:
 
