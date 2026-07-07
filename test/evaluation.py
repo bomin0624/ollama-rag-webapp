@@ -72,6 +72,11 @@ def evaluate_retriever(
     else:
         raise ValueError(f"Unknown retriever type: {retriever_type}")
 
+    # Warm up the retriever so the first query's cold-start cost (lazy model
+    # loading, CUDA kernel compilation) is excluded from the timed loop.
+    warmup_query = next(iter(queries.values()))
+    ragretriever.retriever.invoke(warmup_query)
+
     logging.info(f"--- Evaluating Initial Retrieval (Top {SEARCH_K}) ---")
     initial_results = {}
     retriever_cache_result = {}
@@ -115,6 +120,11 @@ def evaluate_retriever(
     logging.info("Initial Retrieval Metrics:")
     logging.info(f"NDCG@10: {ndcg['NDCG@10']}")
     logging.info(f"Recall@30: {recall['Recall@30']}")
+
+    # Warm up the reranker for the same cold-start reason as the retriever.
+    ragretriever.reranker.predict(
+        [(warmup_query, warmup_query)], batch_size=RERANK_BATCH_SIZE
+    )
 
     reranked_results = {}
     rerank_start = time.perf_counter()
