@@ -2,6 +2,7 @@ import os
 from functools import lru_cache
 
 import ollama
+from langchain_core.documents import Document
 
 from src.config import (
     EMBEDDING_MODEL,
@@ -28,6 +29,11 @@ def get_retriever(db_directory: str) -> RAGRetriever:
 
 
 def generate_prompt_stream(query: str) -> str:
+    prompt, _retrieved_docs = build_prompt(query)
+    return prompt
+
+
+def build_prompt(query: str) -> tuple[str, list[Document]]:
     prompt = (
         f"\nBased on the following query: {query} and "
         "the context provided below to give the user answer.\n"
@@ -39,25 +45,24 @@ def generate_prompt_stream(query: str) -> str:
 
     if not retrieved_docs:
         prompt += "\nNo relevant documents found.\n"
-        return prompt
-    else:
-        for _idx, doc in enumerate(retrieved_docs):
-            # print(f"\n--- Document {idx + 1} ---")
-            # print(f"Content: {doc.page_content[:250]}...")
-            # print(f"Metadata: {doc.metadata}")
-            prompt += f"\nDocument {doc.metadata['id']}:\n{doc.page_content}\n"
-    return prompt
+        return prompt, retrieved_docs
+
+    for doc in retrieved_docs:
+        metadata = doc.metadata or {}
+        document_id = metadata.get("id", "unknown_id")
+        prompt += f"\nDocument {document_id}:\n{doc.page_content}\n"
+
+    return prompt, retrieved_docs
 
 
 def generate_response(query: str) -> str:
-    prompt = generate_prompt_stream(query)
+    answer, _retrieved_docs = generate_response_with_sources(query)
+    return answer
+
+
+def generate_response_with_sources(query: str) -> tuple[str, list[Document]]:
+    prompt, retrieved_docs = build_prompt(query)
     result = ollama.chat(
         model=GENERATE_MODEL, messages=[{"role": "user", "content": prompt}]
     )
-    return result["message"]["content"]
-
-
-# if __name__ == "__main__":
-#     query = input("Please enter your query: ")
-#     response = generate_response(query)
-#     print(response)
+    return result["message"]["content"], retrieved_docs
