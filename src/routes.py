@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 def build_source_document(doc) -> SourceDocument:
     metadata = doc.metadata or {}
+
     return SourceDocument(
         id=str(metadata.get("id", "")),
         title=metadata.get("title"),
@@ -31,13 +32,16 @@ def query(request: QueryRequest) -> QueryResponse:
     try:
         answer, retrieved_docs = generate_response_with_sources(request.query)
         sources = [build_source_document(doc) for doc in retrieved_docs]
+
         return QueryResponse(
             answer=answer,
             sources=sources,
             model=GENERATE_MODEL,
         )
+
     except Exception as e:
         logger.exception("Error occurred while processing query")
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",

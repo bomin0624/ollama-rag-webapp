@@ -28,11 +28,6 @@ def get_retriever(db_directory: str) -> RAGRetriever:
     )
 
 
-def generate_prompt_stream(query: str) -> str:
-    prompt, _retrieved_docs = build_prompt(query)
-    return prompt
-
-
 def build_prompt(query: str) -> tuple[str, list[Document]]:
     prompt = (
         f"\nBased on the following query: {query} and "
@@ -53,11 +48,6 @@ def build_prompt(query: str) -> tuple[str, list[Document]]:
         prompt += f"\nDocument {document_id}:\n{doc.page_content}\n"
 
     return prompt, retrieved_docs
-
-
-def generate_response(query: str) -> str:
-    answer, _retrieved_docs = generate_response_with_sources(query)
-    return answer
 
 
 def generate_response_with_sources(query: str) -> tuple[str, list[Document]]:
