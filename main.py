@@ -45,11 +45,6 @@ def create_app() -> FastAPI:
 
 app = create_app()
 
-# TO:DO
-# add post 查詢路由 input: query string, output: generated response
-# front-end
-# Evaluation: RAGAS
-
 
 def main():
     print("Hello from rag!")

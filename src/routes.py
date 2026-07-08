@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.generator import generate_response
 
@@ -11,7 +11,13 @@ logger = logging.getLogger(__name__)
 
 # FastAPI data model used to define the request body structure
 class QueryRequest(BaseModel):
-    query: str
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    query: str = Field(
+        min_length=1,
+        max_length=1000,
+        description="User question for the RAG system. "
+        "Must be between 1 and 1000 characters.",
+    )
 
 
 @router.get("/health", include_in_schema=False)
