@@ -1,0 +1,49 @@
+name: Issue Triage
+
+on:
+  issues:
+    types: [opened, reopened]
+
+permissions:
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  add-triage-label:
+    name: Add triage label
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ensure triage label and apply it
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const label = 'triage';
+            const { owner, repo } = context.repo;
+
+            // Create the label if it does not exist yet.
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: label });
+            } catch (error) {
+              if (error.status === 404) {
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: label,
+                  color: 'fbca04',
+                  description: 'Needs triage',
+                });
+              } else {
+                throw error;
+              }
+            }
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: context.issue.number,
+              labels: [label],
+            });
