@@ -36,7 +36,7 @@ def build_prompt(query: str) -> tuple[str, list[Document]]:
     # Ensure the database is initialized (idempotent check)
     initialize_vector_database(DB_DIRECTORY)
     retriever = get_retriever(DB_DIRECTORY)
-    retrieved_docs = retriever.retrieve_and_rerank(query)
+    retrieved_docs: list[Document] = retriever.retrieve_and_rerank(query)
 
     if not retrieved_docs:
         prompt += "\nNo relevant documents found.\n"
