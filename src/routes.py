@@ -1,17 +1,12 @@
 import logging
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
 
 from src.generator import generate_response
+from src.schemas import QueryRequest
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-
-# FastAPI data model used to define the request body structure
-class QueryRequest(BaseModel):
-    query: str
 
 
 @router.get("/health", include_in_schema=False)
