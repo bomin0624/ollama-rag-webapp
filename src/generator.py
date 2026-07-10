@@ -44,7 +44,8 @@ def build_prompt(query: str) -> tuple[str, list[Document]]:
 
     for doc in retrieved_docs:
         metadata = doc.metadata or {}
-        document_id = metadata.get("id", "unknown_id")
+        doc_id = metadata.get("id")
+        document_id = str(doc_id) if doc_id is not None else "unknown_id"
         prompt += f"\nDocument {document_id}:\n{doc.page_content}\n"
 
     return prompt, retrieved_docs

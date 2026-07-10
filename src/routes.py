@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, HTTPException, status
+from langchain_core.documents import Document
 
 from src.config import GENERATE_MODEL
 from src.generator import generate_response_with_sources
@@ -10,11 +11,12 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def build_source_document(doc) -> SourceDocument:
+def build_source_document(doc: Document) -> SourceDocument:
     metadata = doc.metadata or {}
+    doc_id = metadata.get("id")
 
     return SourceDocument(
-        id=str(metadata.get("id", "")),
+        id=str(doc_id) if doc_id is not None else "unknown_id",
         title=metadata.get("title"),
         content=doc.page_content,
     )
