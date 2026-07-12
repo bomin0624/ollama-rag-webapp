@@ -13,10 +13,9 @@ logger = logging.getLogger(__name__)
 
 def build_source_document(doc: Document) -> SourceDocument:
     metadata = doc.metadata or {}
-    doc_id = metadata.get("id")
 
     return SourceDocument(
-        id=str(doc_id) if doc_id is not None else "unknown_id",
+        id=metadata.get("id", "unknown_id"),
         title=metadata.get("title"),
         content=doc.page_content,
     )
