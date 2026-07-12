@@ -14,7 +14,6 @@ from src.config import (
     EMBEDDING_MODEL,
     LOG_DIR,
     RERANK_BATCH_SIZE,
-    RERANK_TOP_K,
     RERANKER_MODEL,
     RETRIEVER_TYPE,
     SEARCH_K,
@@ -129,7 +128,7 @@ def evaluate_retriever(
     reranked_results = {}
     rerank_start = time.perf_counter()
     for query_id, query_text in tqdm(queries.items(), desc="Reranking"):
-        retrieved_chunks = retriever_cache_result[query_id][:RERANK_TOP_K]
+        retrieved_chunks = retriever_cache_result[query_id]
         if not retrieved_chunks:
             reranked_results[query_id] = {}
             continue

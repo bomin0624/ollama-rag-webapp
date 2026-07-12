@@ -16,7 +16,6 @@ from src.config import (
     EMBED_TRUNCATE_DIM,
     EMBEDDING_MODEL,
     RERANK_BATCH_SIZE,
-    RERANK_TOP_K,
 )
 
 
@@ -54,7 +53,6 @@ def rerank_documents(
     if not retrieved_chunks:
         return []
     # Only score the top candidates; reranking cost is O(candidates) per query.
-    retrieved_chunks = retrieved_chunks[:RERANK_TOP_K]
     pairs = [(query, chunk.page_content) for chunk in retrieved_chunks]
     scores = reranker_model.predict(pairs, batch_size=RERANK_BATCH_SIZE)
     # List of tuples [(score, Document), (score, Document), ...]
@@ -76,13 +74,10 @@ def rerank_documents(
     return unique_docs
 
 
-def build_embedding(model_name: str) -> HuggingFaceEmbeddings:
-    model_kwargs = {}
-    if EMBED_TRUNCATE_DIM is not None:
-        model_kwargs["truncate_dim"] = EMBED_TRUNCATE_DIM
+def build_embedding_model(model_name: str) -> HuggingFaceEmbeddings:
     return HuggingFaceEmbeddings(
         model_name=model_name,
-        model_kwargs=model_kwargs,
+        model_kwargs={"truncate_dim": EMBED_TRUNCATE_DIM},
         encode_kwargs={"normalize_embeddings": True},
     )
 
@@ -91,7 +86,7 @@ def _stored_embedding_dim(db_directory: str) -> int | None:
     """Return the persisted collection's vector dim, or None if empty."""
     store = Chroma(
         persist_directory=db_directory,
-        embedding_function=build_embedding(EMBEDDING_MODEL),
+        embedding_function=build_embedding_model(EMBEDDING_MODEL),
     )
     got = store.get(limit=1, include=["embeddings"])
     embeddings = got.get("embeddings")
@@ -101,27 +96,25 @@ def _stored_embedding_dim(db_directory: str) -> int | None:
 
 
 def initialize_vector_database(db_directory: str) -> None:
-    """Build the vector database if missing.
+    """Build the vector database if missing, else check its dimension.
 
-    If it already exists, verify the persisted vector dimension matches the
-    configured ``EMBED_TRUNCATE_DIM``. A mismatch means the embedding model or
-    truncate dimension changed since the database was built, which would fail
-    with an opaque Chroma error at query time; fail fast with rebuild guidance
-    instead.
+    Querying a 256-dim database with 512-dim embeddings fails deep inside
+    Chroma with an hidden error, so compare the two dimensions up front and
+    raise with rebuild instructions instead.
     """
     db_path = Path(db_directory)
     if db_path.exists() and any(db_path.iterdir()):
-        if EMBED_TRUNCATE_DIM is not None:
-            stored_dim = _stored_embedding_dim(db_directory)
-            if stored_dim is not None and stored_dim != EMBED_TRUNCATE_DIM:
-                raise RuntimeError(
-                    f"Vector database dimension ({stored_dim}) does not "
-                    f"match the configured EMBED_TRUNCATE_DIM "
-                    f"({EMBED_TRUNCATE_DIM}). The embedding model or truncate "
-                    f"dimension changed since the database was built. "
-                    f"Rebuild it with:\n"
-                    f"    rm -rf {db_directory} && make run"
-                )
+        # TODO: Consider rebuild the vector database if the embedding model or
+        # truncate dimension changed.
+        stored_dim = _stored_embedding_dim(db_directory)
+        if stored_dim is not None and stored_dim != EMBED_TRUNCATE_DIM:
+            raise RuntimeError(
+                f"Vector database at {db_directory} stores {stored_dim}-dim "
+                f"vectors, but EMBED_TRUNCATE_DIM is {EMBED_TRUNCATE_DIM}. "
+                f"A database is built at a single fixed dimension and is not "
+                f"rebuilt automatically, so delete it and let it rebuild:\n"
+                f"    rm -rf {db_directory} && make run"
+            )
         return
 
     print("Vector database not found. Creating new database...")
@@ -153,7 +146,7 @@ def initialize_vector_database(db_directory: str) -> None:
     chunks = text_splitter.split_documents(documents)
     print(f"Number of chunks: {len(chunks)}")
 
-    embedding = build_embedding(EMBEDDING_MODEL)
+    embedding = build_embedding_model(EMBEDDING_MODEL)
     Chroma.from_documents(
         documents=chunks,
         embedding=embedding,

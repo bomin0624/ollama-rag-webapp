@@ -54,23 +54,6 @@ flowchart TD
 
 If the embedding model or embedding dimension changes, delete or rebuild `vectordatabase/`. Chroma collections require a consistent vector dimension.
 
-## Rebuilding the Vector Database
-
-The vector database is only built once, when `vectordatabase/` is missing or empty. After that, the persisted embeddings are reused on every startup. You must rebuild it whenever anything that changes the stored vectors changes, for example:
-
-- Changing `EMBEDDING_MODEL` in `src/config.py`.
-- Changing `EMBED_TRUNCATE_DIM` (the Matryoshka truncate dimension), since this changes the vector dimension.
-- Changing the dataset (`DATASET`) or the chunking settings.
-
-To rebuild, delete the existing database and start the app again. The lifespan startup regenerates the embeddings and writes a fresh collection:
-
-```bash
-rm -rf vectordatabase/
-make run
-```
-
-> **Note:** Rebuilding re-embeds the whole corpus, so the first startup after a rebuild takes longer. A mismatched vector dimension (for example, querying a 256-dim collection with a 1024-dim embedding) raises a Chroma dimension error, which is the signal that a rebuild is needed.
-
 ## Retriever Types
 
 Two retriever types are currently supported:
@@ -82,19 +65,13 @@ Configure this with `RETRIEVER_TYPE` in `src/config.py`.
 
 ## Running the App
 
-### Prerequisites
-
-- Python 3.12 (see `.python-version`)
-- [uv](https://github.com/astral-sh/uv) for dependency management
-- Docker for the Ollama container
-
-### 1. Install dependencies
+### Install dependencies
 
 ```bash
 make install
 ```
 
-### 2. Start Ollama
+### Start Ollama
 
 ```bash
 docker compose up -d ollama
@@ -152,7 +129,7 @@ By default this runs the `hybrid` retriever on the `dev` split with the embeddin
 make evaluate RETRIEVER=vector SPLIT=test DIM=256
 ```
 
-`DIM` sets `EMBED_TRUNCATE_DIM` for the run, so the vector database must have been built at the same dimension — otherwise the dimension pre-check raises a mismatch error and you need to rebuild `vectordatabase/` first (see [Rebuilding the vector database](#rebuilding-the-vector-database)).
+`DIM` sets `EMBED_TRUNCATE_DIM` for the run, so the vector database must have been built at the same dimension — otherwise the dimension pre-check raises a mismatch error and you need to rebuild `vectordatabase/` first with `rm -rf vectordatabase/ && make run`.
 
 Or invoke the module directly:
 
@@ -174,9 +151,3 @@ Available splits:
 - `test`
 
 Evaluation logs are written to `log/`.
-
-## TODO
-
-- Add frontend for the RAG web app.
-- Add RAGAS evaluation.
-- Add tests for retriever initialization and query route behavior.

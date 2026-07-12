@@ -7,7 +7,7 @@ from sentence_transformers import CrossEncoder
 from src.config import RERANK_RETURN_N
 from src.retriever.utils import (
     build_bm25_documents,
-    build_embedding,
+    build_embedding_model,
     rerank_documents,
 )
 
@@ -20,7 +20,7 @@ class RAGRetriever:
         reranker_model: str,
         search_k: int,
     ):
-        self.embedding = build_embedding(embedding_model)
+        self.embedding = build_embedding_model(embedding_model)
         self.vector_store = Chroma(
             persist_directory=db_directory,
             embedding_function=self.embedding,
