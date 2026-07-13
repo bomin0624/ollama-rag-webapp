@@ -31,6 +31,37 @@ def test_build_bm25_documents_keeps_metadata_id():
     assert documents[1].metadata["id"] == "MED-336"
 
 
+def test_build_bm25_documents_falls_back_to_collection_id():
+    collection = {
+        "ids": ["chunk-1", "chunk-2"],
+        "documents": ["Statins and breast cancer.", "Leucine intake."],
+        "metadatas": [
+            {"title": "Statins"},
+            {"id": None, "title": "Leucine"},
+        ],
+    }
+
+    documents = build_bm25_documents(collection)
+
+    assert [doc.metadata["id"] for doc in documents] == ["chunk-1", "chunk-2"]
+
+
+def test_build_bm25_documents_skips_empty_text():
+    collection = {
+        "ids": ["chunk-1", "chunk-2", "chunk-3"],
+        "documents": ["Statins.", "", None],
+        "metadatas": [
+            {"id": "MED-335"},
+            {"id": "MED-336"},
+            {"id": "MED-337"},
+        ],
+    }
+
+    documents = build_bm25_documents(collection)
+
+    assert [doc.metadata["id"] for doc in documents] == ["MED-335"]
+
+
 def test_rerank_documents_returns_top_n_by_score():
     chunks = [
         Document(page_content="low", metadata={"id": "MED-1"}),
