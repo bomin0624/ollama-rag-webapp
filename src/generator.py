@@ -1,4 +1,3 @@
-import os
 from functools import lru_cache
 
 import ollama
@@ -9,10 +8,12 @@ from src.config import (
     GENERATE_MODEL,
     RERANKER_MODEL,
     SEARCH_K,
+    VECTOR_DB_DIR,
 )
-from src.retriever import RAGRetriever, initialize_vector_database
+from src.retriever.retriever import RAGRetriever
+from src.retriever.utils import initialize_vector_database
 
-DB_DIRECTORY = os.path.join(os.path.dirname(__file__), "..", "vectordatabase")
+DB_DIRECTORY = str(VECTOR_DB_DIR)
 
 
 # Using LRU cache to store the retriever instance

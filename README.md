@@ -26,7 +26,7 @@ flowchart TD
 - `src/routes.py`: API route definitions. It currently provides `GET /health` and `POST /query`.
 - `src/generator.py`: RAG generation flow. It gets the retriever, builds the prompt, and calls `GENERATE_MODEL` through Ollama.
 - `src/retriever.py`: Retrieval core. It builds the Chroma vector store, runs vector search, supports BM25 hybrid retrieval, and applies CrossEncoder reranking.
-- `src/evaluation.py`: Retriever evaluation with BEIR qrels, including initial retrieval and reranked retrieval metrics.
+- `test/evaluation.py`: Retriever evaluation with BEIR qrels, including initial retrieval and reranked retrieval metrics.
 - `src/config.py`: Central configuration for the dataset, embedding model, reranker model, Ollama URL, generation model, and retriever type.
 - `docker-compose.yml`: Starts the Ollama container and mounts `./ollama` to persist model data.
 - `Makefile`: Common development commands for installation, formatting, linting, CI checks, and starting the API server.
@@ -65,23 +65,35 @@ Configure this with `RETRIEVER_TYPE` in `src/config.py`.
 
 ## Running the App
 
-Install dependencies:
+### Install dependencies
 
 ```bash
 make install
 ```
 
-Start Ollama:
+### Start Ollama
 
 ```bash
 docker compose up -d ollama
 ```
 
-Start the FastAPI app:
+> **Note:** `docker-compose.yml` reserves an NVIDIA GPU by default. If you do not have a GPU, remove or comment out the `deploy:` block before starting the container.
+
+### 3. Pull the generation model
+
+The app uses `GENERATE_MODEL` from `src/config.py` (default `llama3.1`). Pull it into the Ollama container before the first query:
+
+```bash
+docker exec -it ollama ollama pull llama3.1
+```
+
+### 4. Start the FastAPI app
 
 ```bash
 make run
 ```
+
+> On the first run, the lifespan startup builds the vector database when `vectordatabase/` is missing or empty: it downloads the BEIR dataset, generates embeddings, and writes them to Chroma. This can take a while.
 
 By default, the API server runs at:
 
@@ -108,8 +120,24 @@ curl -X POST http://localhost:8000/query \
 Run retriever evaluation:
 
 ```bash
-uv run python -m src.evaluation --retriever hybrid --split dev
+make evaluate
 ```
+
+By default this runs the `hybrid` retriever on the `dev` split with the embedding truncate dimension from `config.py` (`512`). Override the retriever, split, or dimension with variables:
+
+```bash
+make evaluate RETRIEVER=vector SPLIT=test DIM=256
+```
+
+`DIM` sets `EMBED_TRUNCATE_DIM` for the run, so the vector database must have been built at the same dimension — otherwise the dimension pre-check raises a mismatch error and you need to rebuild `vectordatabase/` first with `rm -rf vectordatabase/ && make run`.
+
+Or invoke the module directly:
+
+```bash
+EMBED_TRUNCATE_DIM=256 uv run python -m test.evaluation --retriever hybrid --split dev
+```
+
+At the end of a run the evaluation also reports the embedding dimension used and the initial-retrieval and reranking timings (total and per-query).
 
 Available retrievers:
 
@@ -123,10 +151,3 @@ Available splits:
 - `test`
 
 Evaluation logs are written to `log/`.
-
-## TODO
-
-- Add frontend for the RAG web app.
-- Add RAGAS evaluation.
-- Add Matryoshka embedding support, including configurable truncate dimension and vector database rebuild guidance.
-- Add tests for retriever initialization and query route behavior.

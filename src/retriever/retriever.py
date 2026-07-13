@@ -1,0 +1,141 @@
+from langchain_chroma import Chroma
+from langchain_classic.retrievers import EnsembleRetriever
+from langchain_community.retrievers import BM25Retriever
+from langchain_core.documents import Document
+from sentence_transformers import CrossEncoder
+
+from src.config import RERANK_RETURN_N
+from src.retriever.utils import (
+    build_bm25_documents,
+    build_embedding_model,
+    rerank_documents,
+)
+
+
+class RAGRetriever:
+    def __init__(
+        self,
+        db_directory: str,
+        embedding_model: str,
+        reranker_model: str,
+        search_k: int,
+    ):
+        self.embedding = build_embedding_model(embedding_model)
+        self.vector_store = Chroma(
+            persist_directory=db_directory,
+            embedding_function=self.embedding,
+        )
+        # https://zenn.dev/pipon_tech_blog/articles/8cdb27830236c5
+        self.retriever = self.vector_store.as_retriever(
+            search_kwargs={"k": search_k}
+        )
+        print(f"Loading reranker model: {reranker_model}")
+        self.reranker = CrossEncoder(reranker_model)
+
+    def retrieve_and_rerank(
+        self, query: str, top_n: int = RERANK_RETURN_N
+    ) -> list[Document]:
+        initial_docs = self.retriever.invoke(query)
+        reranked_docs = rerank_documents(
+            query, initial_docs, self.reranker, top_n=top_n
+        )
+        return reranked_docs
+
+
+class HybridRetriever(RAGRetriever):
+    """
+    A retriever that combines both vector search and sparse search (BM25).
+    """
+
+    def __init__(
+        self,
+        db_directory: str,
+        embedding_model: str,
+        reranker_model: str,
+        search_k: int,
+    ):
+        super().__init__(
+            db_directory, embedding_model, reranker_model, search_k
+        )
+
+        # Get the raw collection data to use for BM25.
+        # TODO: This loads the entire collection into memory.
+        # Consider Elasticsearch or Weaviate.
+        collection = self.vector_store.get()
+        # print(f"DEBUG: Collection keys: {list(collection.keys())}")
+        # ['ids', 'embeddings', 'documents', 'uris', 'included', 'data',
+        # 'metadatas']
+        # print(f"DEBUG: Total documents: {(collection['documents'][:10])}")
+        # print(f"DEBUG: Total metadatas: {(collection['metadatas'][:10])}")
+        # Example metadata: {'id': 'MED-335', 'title': '...'}
+        documents = build_bm25_documents(collection)
+
+        # print(documents[0])
+        bm25_retriever = BM25Retriever.from_documents(documents)
+        bm25_retriever.k = search_k
+
+        self.retriever = EnsembleRetriever(
+            retrievers=[self.retriever, bm25_retriever], weights=[0.7, 0.3]
+        )  # Reciprocal Rank Fusion (RRF) Algorithm
+
+
+# if __name__ == "__main__":
+#     db_directory = str(VECTOR_DB_DIR)
+#     initialize_vector_database(db_directory)
+#     retriever = HybridRetriever(
+#         db_directory=db_directory,
+#         embedding_model=EMBEDDING_MODEL,
+#         reranker_model=RERANKER_MODEL,
+#         search_k=100,
+#     )
+
+# if not os.path.exists(db_directory) or not os.listdir(db_directory):
+#     print("Vector database not found. Creating new database...")
+#     data_path = util.download_and_unzip(url, os.path.join(
+# os.path.dirname(__file__), "..", "datasets"))
+#     corpus, queries, qrels = GenericDataLoader(data_path).load(
+# split="test")
+#     documents = []
+
+#     for doc_id, content in corpus.items():
+#         documents.append(Document(page_content=content["text"],
+#                                 metadata={"title": content["title"],
+#                                             "id": doc_id}))
+
+#     # max_length * 4 = chunk_size
+#     # chunk_overlap = chunk_size * 0.10 ~ 0.25
+#     text_splitter = RecursiveCharacterTextSplitter(
+#         chunk_size=2048,
+#         chunk_overlap=300,
+#     )
+
+#     chunks = text_splitter.split_documents(documents)
+#     print(f"Number of chunks: {len(chunks)}")
+
+#     embedding = HuggingFaceEmbeddings(model_name=embedding_model)
+#     vector_store = Chroma.from_documents(
+#         documents=chunks,
+#         embedding=embedding,
+#         persist_directory=db_directory,
+#     )
+#     print(f"Vector store created and persisted to {db_directory}")
+# else:
+#     print(f"Using existing vector database at {db_directory}\n")
+
+# retriever = RAGRetriever(
+#     db_directory=db_directory,
+#     embedding_model=embedding_model,
+#     reranker_model=reranker_model,
+# )
+
+# query = "Living Longer by Reducing Leucine Intake"
+
+# retrieved_docs = retriever.retrieve_and_rerank(query)
+# print(f"Searching for query: {query}")
+# print("-----------------------------------------")
+# print(f"Found {len(retrieved_docs)} documents:")
+
+# for idx, doc in enumerate(retrieved_docs):
+#     print(f"\n--- Document {idx + 1} ---")
+#     print(f"Content: {doc.page_content[:250]}...")
+#     print(f"Metadata: {doc.metadata}")

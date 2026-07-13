@@ -1,6 +1,6 @@
 import argparse
 import logging
-import os
+import time
 
 from beir import util
 from beir.datasets.data_loader import GenericDataLoader
@@ -9,16 +9,21 @@ from tqdm import tqdm
 
 from src.config import (
     DATASET_URL,
+    DATASETS_DIR,
+    EMBED_TRUNCATE_DIM,
     EMBEDDING_MODEL,
+    LOG_DIR,
+    RERANK_BATCH_SIZE,
     RERANKER_MODEL,
     RETRIEVER_TYPE,
     SEARCH_K,
+    VECTOR_DB_DIR,
 )
-from src.retriever import (
+from src.retriever.retriever import (
     HybridRetriever,
     RAGRetriever,
-    initialize_vector_database,
 )
+from src.retriever.utils import initialize_vector_database
 
 
 def evaluate_retriever(
@@ -28,11 +33,8 @@ def evaluate_retriever(
     Evaluate the retriever performance using Recall@30
     for initial retrieval and NDCG@3 for reranked results.
     """
-    log_dir = os.path.join(os.path.dirname(__file__), "..", "log")
-    os.makedirs(log_dir, exist_ok=True)
-    log_file_path = os.path.join(
-        log_dir, f"nfcorpus_{retriever_type}_{split}.log"
-    )
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    log_file_path = str(LOG_DIR / f"nfcorpus_{retriever_type}_{split}.log")
 
     logging.basicConfig(
         level=logging.INFO,
@@ -43,17 +45,13 @@ def evaluate_retriever(
         ],
     )
 
-    data_path = util.download_and_unzip(
-        DATASET_URL, os.path.join(os.path.dirname(__file__), "..", "datasets")
-    )
+    data_path = util.download_and_unzip(DATASET_URL, str(DATASETS_DIR))
     corpus, queries, qrels = GenericDataLoader(data_path).load(split=split)
 
     # print(queries.items()) # {'PLAIN-2':
     # 'Do Cholesterol Statin Drugs Cause Breast Cancer?'}
     # Ensure the vector database is initialized before evaluation
-    db_directory = os.path.join(
-        os.path.dirname(__file__), "..", "vectordatabase"
-    )
+    db_directory = str(VECTOR_DB_DIR)
     initialize_vector_database(db_directory)
 
     if retriever_type == "hybrid":
@@ -73,9 +71,15 @@ def evaluate_retriever(
     else:
         raise ValueError(f"Unknown retriever type: {retriever_type}")
 
+    # Warm up the retriever so the first query's cold-start cost (lazy model
+    # loading, CUDA kernel compilation) is excluded from the timed loop.
+    warmup_query = next(iter(queries.values()))
+    ragretriever.retriever.invoke(warmup_query)
+
     logging.info(f"--- Evaluating Initial Retrieval (Top {SEARCH_K}) ---")
     initial_results = {}
     retriever_cache_result = {}
+    retrieval_start = time.perf_counter()
     for query_id, query_text in tqdm(
         queries.items(), desc="Initial Retriever"
     ):
@@ -96,6 +100,7 @@ def evaluate_retriever(
             ]
         )
         initial_results[query_id] = query_results
+    retrieval_time = time.perf_counter() - retrieval_start
 
     # Evaluate initial retrieval using Recall@30
     evaluator = EvaluateRetrieval()
@@ -115,7 +120,13 @@ def evaluate_retriever(
     logging.info(f"NDCG@10: {ndcg['NDCG@10']}")
     logging.info(f"Recall@30: {recall['Recall@30']}")
 
+    # Warm up the reranker for the same cold-start reason as the retriever.
+    ragretriever.reranker.predict(
+        [(warmup_query, warmup_query)], batch_size=RERANK_BATCH_SIZE
+    )
+
     reranked_results = {}
+    rerank_start = time.perf_counter()
     for query_id, query_text in tqdm(queries.items(), desc="Reranking"):
         retrieved_chunks = retriever_cache_result[query_id]
         if not retrieved_chunks:
@@ -124,7 +135,9 @@ def evaluate_retriever(
         pairs = [
             (query_text, chunk.page_content) for chunk in retrieved_chunks
         ]
-        scores = ragretriever.reranker.predict(pairs)
+        scores = ragretriever.reranker.predict(
+            pairs, batch_size=RERANK_BATCH_SIZE
+        )
         scored_chunks = sorted(
             zip(scores, retrieved_chunks, strict=False),
             key=lambda x: x[0],
@@ -139,6 +152,7 @@ def evaluate_retriever(
                 query_results[doc_id] = float(score)
                 seen_ids.add(doc_id)
         reranked_results[query_id] = query_results
+    rerank_time = time.perf_counter() - rerank_start
 
     # Evaluate reranked results using NDCG@3
     k_values_reranked = [1, 3, 5, 10]
@@ -147,6 +161,21 @@ def evaluate_retriever(
     )
     logging.info("Reranked Retrieval Metrics:")
     logging.info(f"NDCG@3: {ndcg['NDCG@3']}")
+
+    num_queries = len(queries)
+    logging.info("--- Embedding Dimension & Timing ---")
+    logging.info(f"Embedding truncate dim: {EMBED_TRUNCATE_DIM}")
+    logging.info(
+        f"Initial retrieval time: {retrieval_time:.2f}s "
+        f"total, {retrieval_time / num_queries * 1000:.2f}ms/query "
+        f"({num_queries} queries)"
+    )
+    logging.info(
+        f"Reranking time: {rerank_time:.2f}s "
+        f"total, {rerank_time / num_queries * 1000:.2f}ms/query "
+        f"({num_queries} queries)"
+    )
+    logging.info(f"Total time: {retrieval_time + rerank_time:.2f}s")
 
 
 if __name__ == "__main__":
