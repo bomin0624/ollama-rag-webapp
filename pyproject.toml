@@ -22,8 +22,14 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pytest>=8.0.0",
     "ruff>=0.11.0",
 ]
+
+[tool.pytest.ini_options]
+# Only collect the unit tests. test/evaluation.py is the BEIR evaluation
+# entry point (`make evaluate`), not a pytest suite.
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 79
