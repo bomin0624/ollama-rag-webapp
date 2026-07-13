@@ -30,9 +30,12 @@ def build_bm25_documents(collection: dict) -> list[Document]:
         if not text:
             continue
 
+        # Some chunks may not have metadata, so start with an empty dict.
+        # Copy existing metadata so adding an id does not change source data.
         metadata = (
             dict(metadatas[index] or {}) if index < len(metadatas) else {}
         )
+        # Map BM25 results back to original collection items.
         if "id" not in metadata or metadata["id"] is None:
             metadata["id"] = collection_ids[index]
 
