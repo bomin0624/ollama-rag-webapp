@@ -7,13 +7,18 @@ from src.config import (
     EMBEDDING_MODEL,
     GENERATE_MODEL,
     RERANKER_MODEL,
+    RETRIEVER_TYPE,
     SEARCH_K,
     VECTOR_DB_DIR,
 )
-from src.retriever.retriever import RAGRetriever
+from src.retriever.retriever import HybridRetriever, RAGRetriever
 from src.retriever.utils import initialize_vector_database
 
 DB_DIRECTORY = str(VECTOR_DB_DIR)
+RETRIEVER_CLASSES = {
+    "vector": RAGRetriever,
+    "hybrid": HybridRetriever,
+}
 
 
 # Using LRU cache to store the retriever instance
@@ -21,7 +26,16 @@ DB_DIRECTORY = str(VECTOR_DB_DIR)
 @lru_cache(maxsize=1)
 def get_retriever(db_directory: str) -> RAGRetriever:
     """Gets or creates a cached RAGRetriever instance."""
-    return RAGRetriever(
+    try:
+        retriever_class = RETRIEVER_CLASSES[RETRIEVER_TYPE]
+    except KeyError as e:
+        allowed = ", ".join(RETRIEVER_CLASSES)
+        raise ValueError(
+            f"Invalid RETRIEVER_TYPE: {RETRIEVER_TYPE!r}. "
+            f"Choose one of: {allowed}"
+        ) from e
+
+    return retriever_class(
         db_directory=db_directory,
         embedding_model=EMBEDDING_MODEL,
         reranker_model=RERANKER_MODEL,
