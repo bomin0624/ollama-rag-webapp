@@ -48,6 +48,8 @@ def evaluate_retriever(
     data_path = util.download_and_unzip(DATASET_URL, str(DATASETS_DIR))
     corpus, queries, qrels = GenericDataLoader(data_path).load(split=split)
 
+    # print(queries.items()) # {'PLAIN-2':
+    # 'Do Cholesterol Statin Drugs Cause Breast Cancer?'}
     # Ensure the vector database is initialized before evaluation
     db_directory = str(VECTOR_DB_DIR)
     initialize_vector_database(db_directory)
@@ -106,6 +108,14 @@ def evaluate_retriever(
     ndcg, _map, recall, precision = evaluator.evaluate(
         qrels, initial_results, k_values_initial
     )
+    # print(evaluator.evaluate(qrels, initial_results, k_values_initial))
+    # ({'NDCG@1': 0.41796, 'NDCG@5': 0.3661, 'NDCG@10': 0.2739,
+    # 'NDCG@30': 0.20669},
+    # {'MAP@1': 0.05611, 'MAP@5': 0.10866, 'MAP@10': 0.10866,
+    # 'MAP@30': 0.10866},
+    # {'Recall@1': 0.05611, 'Recall@5': 0.12886, 'Recall@10': 0.12886,
+    # 'Recall@30': 0.12886},
+    # {'P@1': 0.43963, 'P@5': 0.31641, 'P@10': 0.1582, 'P@30': 0.05273})
     logging.info("Initial Retrieval Metrics:")
     logging.info(f"NDCG@10: {ndcg['NDCG@10']}")
     logging.info(f"Recall@30: {recall['Recall@30']}")

@@ -38,7 +38,7 @@ test:
 	$(UV) run $(PYTHON) -m pytest
 
 evaluate:
-	EMBED_TRUNCATE_DIM=$(DIM) $(UV) run $(PYTHON) -m test.evaluation --retriever $(RETRIEVER) --split $(SPLIT)
+	EMBED_TRUNCATE_DIM=$(DIM) $(UV) run $(PYTHON) -m evaluate.evaluation --retriever $(RETRIEVER) --split $(SPLIT)
 
 ci: format-check test
 
