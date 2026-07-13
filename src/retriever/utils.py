@@ -119,7 +119,6 @@ def initialize_vector_database(db_directory: str) -> None:
 
     print("Vector database not found. Creating new database...")
     data_path = util.download_and_unzip(DATASET_URL, str(DATASETS_DIR))
-    # corpus, queries, qrels = GenericDataLoader(data_path).load("test")
     corpus_path = Path(data_path) / "corpus.jsonl"
     documents = []
 
