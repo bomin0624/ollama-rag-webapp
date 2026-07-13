@@ -1,4 +1,16 @@
-from src.retriever.utils import build_bm25_documents
+from langchain_core.documents import Document
+
+from src.retriever.utils import build_bm25_documents, rerank_documents
+
+
+class FakeReranker:
+    """Stands in for the CrossEncoder, scoring pairs in a fixed order."""
+
+    def __init__(self, scores: list[float]):
+        self.scores = scores
+
+    def predict(self, pairs, batch_size: int) -> list[float]:
+        return self.scores[: len(pairs)]
 
 
 def test_build_bm25_documents_keeps_metadata_id():
@@ -17,3 +29,21 @@ def test_build_bm25_documents_keeps_metadata_id():
     assert documents[0].page_content == "Statins and breast cancer."
     assert documents[0].metadata["id"] == "MED-335"
     assert documents[1].metadata["id"] == "MED-336"
+
+
+def test_rerank_documents_returns_top_n_by_score():
+    chunks = [
+        Document(page_content="low", metadata={"id": "MED-1"}),
+        Document(page_content="high", metadata={"id": "MED-2"}),
+        Document(page_content="middle", metadata={"id": "MED-3"}),
+    ]
+    reranker = FakeReranker(scores=[0.1, 0.9, 0.5])
+
+    reranked = rerank_documents(
+        query="statins",
+        retrieved_chunks=chunks,
+        reranker_model=reranker,
+        top_n=2,
+    )
+
+    assert [doc.metadata["id"] for doc in reranked] == ["MED-2", "MED-3"]
