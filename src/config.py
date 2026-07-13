@@ -28,7 +28,8 @@ EMBEDDING_MODEL = "mixedbread-ai/mxbai-embed-large-v1"
 
 RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 
-OLLAMA_URL = "http://localhost:11434"  # Ollama server URL
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "120"))
 
 GENERATE_MODEL = "llama3.1"  # Model name for generation
 

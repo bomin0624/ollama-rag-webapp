@@ -6,6 +6,8 @@ from langchain_core.documents import Document
 from src.config import (
     EMBEDDING_MODEL,
     GENERATE_MODEL,
+    OLLAMA_TIMEOUT,
+    OLLAMA_URL,
     RERANKER_MODEL,
     RETRIEVER_TYPE,
     SEARCH_K,
@@ -19,6 +21,10 @@ RETRIEVER_CLASSES = {
     "vector": RAGRetriever,
     "hybrid": HybridRetriever,
 }
+ollama_client = ollama.Client(
+    host=OLLAMA_URL,
+    timeout=OLLAMA_TIMEOUT,
+)
 
 
 # Using LRU cache to store the retriever instance
@@ -77,7 +83,8 @@ def build_prompt(
 
 def generate_response_with_sources(query: str) -> tuple[str, list[Document]]:
     prompt, retrieved_docs = build_prompt(query)
-    result = ollama.chat(
-        model=GENERATE_MODEL, messages=[{"role": "user", "content": prompt}]
+    result = ollama_client.chat(
+        model=GENERATE_MODEL,
+        messages=[{"role": "user", "content": prompt}],
     )
     return result["message"]["content"], retrieved_docs
