@@ -11,12 +11,6 @@ from src.config import DATASET_URL, DATASETS_DIR, EMBEDDING_MODEL, LOG_DIR
 def analyze_token_length(texts, tokenizer, title):
     logging.info(f"Tokenizing {len(texts)} texts for '{title}'...")
     token_length = [len(tokenizer.tokenize(text)) for text in texts]
-    # plt.figure(figsize=(10, 6))
-    # plt.hist(token_length, bins=50, color='blue', alpha=0.7)
-    # plt.title('Token Length Distribution')
-    # plt.ylabel('Frequency')
-    # plt.xlabel('Token Length')
-    # plt.grid(True)
 
     logging.info("---------------------------------")
     logging.info(f"Statistics for '{title}':")
@@ -25,17 +19,6 @@ def analyze_token_length(texts, tokenizer, title):
     logging.info(f"  Mean: {np.mean(token_length):.2f}")
     logging.info(f"  Median: {np.median(token_length)}")
     logging.info("----------------------------------")
-
-    # output_dir = os.path.join(os.path.dirname(__file__), "..", "images")
-    # os.makedirs(output_dir, exist_ok=True)
-
-    # save_path = os.path.join(
-    # output_dir,
-    # f"{title}_token_length_distribution.png"
-    # )
-    # plt.savefig(save_path)
-    # logging.info(f"Histogram saved to {save_path}")
-    # plt.close()
 
 
 def main():

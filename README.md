@@ -26,7 +26,8 @@ flowchart TD
 - `src/routes.py`: API route definitions. It currently provides `GET /health` and `POST /query`.
 - `src/generator.py`: RAG generation flow. It gets the retriever, builds the prompt, and calls `GENERATE_MODEL` through Ollama.
 - `src/retriever.py`: Retrieval core. It builds the Chroma vector store, runs vector search, supports BM25 hybrid retrieval, and applies CrossEncoder reranking.
-- `test/evaluation.py`: Retriever evaluation with BEIR qrels, including initial retrieval and reranked retrieval metrics.
+- `evaluate/evaluation.py`: Retriever evaluation with BEIR qrels, including initial retrieval and reranked retrieval metrics.
+- `tests/`: Unit tests, run by `make test` in CI.
 - `src/config.py`: Central configuration for the dataset, embedding model, reranker model, Ollama URL, generation model, and retriever type.
 - `docker-compose.yml`: Starts the Ollama container and mounts `./ollama` to persist model data.
 - `Makefile`: Common development commands for installation, formatting, linting, CI checks, and starting the API server.
@@ -134,7 +135,7 @@ make evaluate RETRIEVER=vector SPLIT=test DIM=256
 Or invoke the module directly:
 
 ```bash
-EMBED_TRUNCATE_DIM=256 uv run python -m test.evaluation --retriever hybrid --split dev
+EMBED_TRUNCATE_DIM=256 uv run python -m evaluate.evaluation --retriever hybrid --split dev
 ```
 
 At the end of a run the evaluation also reports the embedding dimension used and the initial-retrieval and reranking timings (total and per-query).

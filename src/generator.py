@@ -29,14 +29,23 @@ def get_retriever(db_directory: str) -> RAGRetriever:
     )
 
 
-def build_prompt(query: str) -> tuple[str, list[Document]]:
+def build_prompt(
+    query: str, retriever: RAGRetriever | None = None
+) -> tuple[str, list[Document]]:
+    """Build the prompt for ``query``.
+
+    ``retriever`` defaults to the shared cached one; pass an explicit
+    retriever to build a prompt without touching the vector database.
+    """
     prompt = (
         f"\nBased on the following query: {query} and "
         "the context provided below to give the user answer.\n"
     )
-    # Ensure the database is initialized (idempotent check)
-    initialize_vector_database(DB_DIRECTORY)
-    retriever = get_retriever(DB_DIRECTORY)
+    if retriever is None:
+        # Ensure the database is initialized (idempotent check)
+        initialize_vector_database(DB_DIRECTORY)
+        retriever = get_retriever(DB_DIRECTORY)
+
     retrieved_docs: list[Document] = retriever.retrieve_and_rerank(query)
 
     if not retrieved_docs:
