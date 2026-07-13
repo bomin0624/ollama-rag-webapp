@@ -14,7 +14,6 @@ from src.config import (
     VECTOR_DB_DIR,
 )
 from src.retriever.retriever import HybridRetriever, RAGRetriever
-from src.retriever.utils import initialize_vector_database
 
 DB_DIRECTORY = str(VECTOR_DB_DIR)
 RETRIEVER_CLASSES = {
@@ -61,11 +60,9 @@ def build_prompt(
         f"\nBased on the following query: {query} and "
         "the context provided below to give the user answer.\n"
     )
+    # Ensure the database is initialized (idempotent check)
     if retriever is None:
-        # Ensure the database is initialized (idempotent check)
-        initialize_vector_database(DB_DIRECTORY)
         retriever = get_retriever(DB_DIRECTORY)
-
     retrieved_docs: list[Document] = retriever.retrieve_and_rerank(query)
 
     if not retrieved_docs:
