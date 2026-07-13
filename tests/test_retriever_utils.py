@@ -78,3 +78,33 @@ def test_rerank_documents_returns_top_n_by_score():
     )
 
     assert [doc.metadata["id"] for doc in reranked] == ["MED-2", "MED-3"]
+
+
+def test_rerank_documents_keeps_only_the_top_chunk_per_document():
+    chunks = [
+        Document(page_content="MED-1, weak chunk", metadata={"id": "MED-1"}),
+        Document(page_content="MED-1, best chunk", metadata={"id": "MED-1"}),
+        Document(page_content="MED-2, only chunk", metadata={"id": "MED-2"}),
+    ]
+    reranker = FakeReranker(scores=[0.2, 0.9, 0.5])
+
+    reranked = rerank_documents(
+        query="statins",
+        retrieved_chunks=chunks,
+        reranker_model=reranker,
+        top_n=2,
+    )
+
+    assert [doc.metadata["id"] for doc in reranked] == ["MED-1", "MED-2"]
+    assert reranked[0].page_content == "MED-1, best chunk"
+
+
+def test_rerank_documents_returns_empty_for_no_chunks():
+    reranked = rerank_documents(
+        query="statins",
+        retrieved_chunks=[],
+        reranker_model=FakeReranker(scores=[]),
+        top_n=3,
+    )
+
+    assert reranked == []
