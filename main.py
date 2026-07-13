@@ -13,7 +13,6 @@ from src.config import LOG_DIR
 from src.generator import (
     DB_DIRECTORY,
     get_retriever,
-    initialize_vector_database,
 )
 from src.routes import router
 
@@ -45,7 +44,6 @@ async def lifespan(app: FastAPI):
     """
     # --- Startup ---
     logging.info("Server starting: initializing vector database...")
-    initialize_vector_database(DB_DIRECTORY)
     logging.info("Vector database is ready.")
 
     logging.info("Warming up retriever (models + BM25 index)...")

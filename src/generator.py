@@ -14,6 +14,7 @@ from src.config import (
     VECTOR_DB_DIR,
 )
 from src.retriever.retriever import HybridRetriever, RAGRetriever
+from src.retriever.utils import initialize_vector_database
 
 DB_DIRECTORY = str(VECTOR_DB_DIR)
 RETRIEVER_CLASSES = {
@@ -40,6 +41,8 @@ def get_retriever(db_directory: str) -> RAGRetriever:
             f"Choose one of: {allowed}"
         ) from e
 
+    initialize_vector_database(DB_DIRECTORY)
+
     return retriever_class(
         db_directory=db_directory,
         embedding_model=EMBEDDING_MODEL,
@@ -60,7 +63,7 @@ def build_prompt(
         f"\nBased on the following query: {query} and "
         "the context provided below to give the user answer.\n"
     )
-    # Ensure the database is initialized (idempotent check)
+    # Use the shared cached retriever when one is not injected.
     if retriever is None:
         retriever = get_retriever(DB_DIRECTORY)
     retrieved_docs: list[Document] = retriever.retrieve_and_rerank(query)
