@@ -14,6 +14,7 @@ from src.generator import (
     DB_DIRECTORY,
     get_retriever,
 )
+from src.retriever.utils import initialize_vector_database
 from src.routes import router
 
 
@@ -45,7 +46,7 @@ async def lifespan(app: FastAPI):
     # --- Startup ---
     logging.info("Server starting: initializing vector database...")
     logging.info("Vector database is ready.")
-
+    initialize_vector_database(DB_DIRECTORY)
     logging.info("Warming up retriever (models + BM25 index)...")
     get_retriever(DB_DIRECTORY)
     logging.info("Retriever is ready.")

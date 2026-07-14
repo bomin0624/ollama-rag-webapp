@@ -1,10 +1,18 @@
+from functools import lru_cache
+
 from langchain_chroma import Chroma
 from langchain_classic.retrievers import EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 from sentence_transformers import CrossEncoder
 
-from src.config import RERANK_RETURN_N
+from src.config import (
+    EMBEDDING_MODEL,
+    RERANK_RETURN_N,
+    RERANKER_MODEL,
+    RETRIEVER_TYPE,
+    SEARCH_K,
+)
 from src.retriever.utils import (
     build_bm25_documents,
     build_embedding_model,
@@ -70,3 +78,31 @@ class HybridRetriever(RAGRetriever):
         self.retriever = EnsembleRetriever(
             retrievers=[self.retriever, bm25_retriever], weights=[0.7, 0.3]
         )  # Reciprocal Rank Fusion (RRF) Algorithm
+
+
+RETRIEVER_CLASSES = {
+    "vector": RAGRetriever,
+    "hybrid": HybridRetriever,
+}
+
+
+# Using LRU cache to store the retriever instance
+# for efficient reuse across multiple calls
+@lru_cache(maxsize=1)
+def get_retriever(db_directory: str) -> RAGRetriever:
+    """Gets or creates a cached RAGRetriever instance."""
+    try:
+        retriever_class = RETRIEVER_CLASSES[RETRIEVER_TYPE]
+    except KeyError as e:
+        allowed = ", ".join(RETRIEVER_CLASSES)
+        raise ValueError(
+            f"Invalid RETRIEVER_TYPE: {RETRIEVER_TYPE!r}. "
+            f"Choose one of: {allowed}"
+        ) from e
+
+    return retriever_class(
+        db_directory=db_directory,
+        embedding_model=EMBEDDING_MODEL,
+        reranker_model=RERANKER_MODEL,
+        search_k=SEARCH_K,
+    )
