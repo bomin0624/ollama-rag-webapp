@@ -44,7 +44,7 @@ def build_prompt(
 
 
 def generate_response_with_sources(
-    query: str, retriever: RAGRetriever | None = None
+    query: str, retriever: RAGRetriever
 ) -> tuple[str, list[Document]]:
     if retriever is None:
         retriever = get_retriever(DB_DIRECTORY)
