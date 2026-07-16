@@ -1,6 +1,30 @@
 services:
+  api:
+    container_name: rag-api
+    image: rag-api/rag-api:0.1.0
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_TIMEOUT=120
+    volumes:
+      - ./datasets:/app/datasets
+      - ./vectordatabase:/app/vectordatabase
+      - ./log:/app/log
+    depends_on:
+      - ollama
+    restart: unless-stopped
+    # Enable GPU support
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.32.1
     container_name: ollama
     restart: unless-stopped
     ports:
@@ -17,6 +41,3 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-
-# volumes:
-#   ollama_data: # defines a named volume for persistent storage
