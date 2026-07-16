@@ -3,8 +3,9 @@ import logging
 from fastapi import APIRouter, HTTPException, status
 from langchain_core.documents import Document
 
-from src.config import GENERATE_MODEL
+from src.config import GENERATE_MODEL, VECTOR_DB_DIR
 from src.generator import generate_response_with_sources
+from src.retriever.retriever import get_retriever
 from src.schemas import QueryRequest, QueryResponse, SourceDocument
 
 router = APIRouter()
@@ -31,7 +32,10 @@ def health_check():
 def query(request: QueryRequest) -> QueryResponse:
     """Endpoint to handle user queries and return generated responses."""
     try:
-        answer, retrieved_docs = generate_response_with_sources(request.query)
+        retriever = get_retriever(str(VECTOR_DB_DIR))
+        answer, retrieved_docs = generate_response_with_sources(
+            request.query, retriever=retriever
+        )
         sources = [build_source_document(doc) for doc in retrieved_docs]
 
         return QueryResponse(
