@@ -30,6 +30,7 @@ def evaluate_retriever(
     retriever_type: str = RETRIEVER_TYPE,
     split: str = "dev",
     workers: int = DEFAULT_WORKERS,
+    rerank_batch_size: int = RERANK_BATCH_SIZE,
 ) -> None:
     """
     Evaluate the retriever performance using Recall@30
@@ -84,12 +85,12 @@ def evaluate_retriever(
 
     # Warm up the reranker for the same cold-start reason as the retriever.
     ragretriever.reranker.predict(
-        [(warmup_query, warmup_query)], batch_size=RERANK_BATCH_SIZE
+        [(warmup_query, warmup_query)], batch_size=rerank_batch_size
     )
 
     rerank_start = time.perf_counter()
     reranked_results = rerank_all_queries(
-        ragretriever, queries, retrieved, batch_size=RERANK_BATCH_SIZE
+        ragretriever, queries, retrieved, batch_size=rerank_batch_size
     )
     rerank_time = time.perf_counter() - rerank_start
 
@@ -144,9 +145,26 @@ if __name__ == "__main__":
             "Use 1 for sequential behaviour."
         ),
     )
+    parser.add_argument(
+        "--rerank-batch-size",
+        type=int,
+        default=RERANK_BATCH_SIZE,
+        help=(
+            "Batch size for the cross-encoder reranker's predict() call. "
+            "Larger values use more GPU memory but keep the GPU better "
+            f"saturated. Defaults to RERANK_BATCH_SIZE ({RERANK_BATCH_SIZE})."
+        ),
+    )
     args = parser.parse_args()
     if args.workers < 1:
         parser.error("--workers must be >= 1")
+
+    if args.rerank_batch_size < 1:
+        parser.error("--rerank-batch-size must be >= 1")
+
     evaluate_retriever(
-        retriever_type=args.retriever, split=args.split, workers=args.workers
+        retriever_type=args.retriever,
+        split=args.split,
+        workers=args.workers,
+        rerank_batch_size=args.rerank_batch_size,
     )
