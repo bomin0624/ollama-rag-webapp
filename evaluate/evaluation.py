@@ -140,9 +140,10 @@ if __name__ == "__main__":
         type=int,
         default=DEFAULT_WORKERS,
         help=(
-            "Number of concurrent retrieval workers; the bottleneck is "
-            "the Ollama server, so also check OLLAMA_NUM_PARALLEL. "
-            "Use 1 for sequential behaviour."
+            "Number of concurrent retrieval workers. Retrieval runs "
+            "locally (HuggingFace embeddings + Chroma + BM25); torch "
+            "releases the GIL during encoding, so a few threads still "
+            "help. Use 1 for sequential behaviour."
         ),
     )
     parser.add_argument(

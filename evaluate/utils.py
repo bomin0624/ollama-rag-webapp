@@ -55,8 +55,10 @@ def run_retrieval(
 ) -> dict[str, list[Document]]:
     """
     Retrieve chunks for every query, running up to `workers` queries
-    concurrently. Retrieval is I/O-bound (Ollama embedding HTTP calls),
-    so threads are enough; `workers=1` reproduces sequential behaviour.
+    concurrently. Query embedding (torch, releases the GIL) and the
+    Chroma search overlap across threads; the BM25 part is pure Python
+    and stays serialized by the GIL. `workers=1` reproduces sequential
+    behaviour.
     """
 
     def _retrieve(item: tuple[str, str]) -> tuple[str, list[Document]]:
