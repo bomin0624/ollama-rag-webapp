@@ -115,9 +115,24 @@ def rerank_all_queries(
         pairs.extend((query_text, chunk.page_content) for chunk in chunks)
         offsets[query_id] = (start, len(pairs))
 
-    scores = ragretriever.reranker.predict(
-        pairs, batch_size=batch_size, show_progress_bar=True
+    # Predict in length-sorted order so each batch pads to a similar
+    # length instead of its longest outlier (CrossEncoder.predict batches
+    # in the order given). Scores are per-pair, so the original order is
+    # restored afterwards. Character length tracks token length closely
+    # enough; longest-first also surfaces any OOM on the first batch.
+    order = sorted(
+        range(len(pairs)),
+        key=lambda i: len(pairs[i][0]) + len(pairs[i][1]),
+        reverse=True,
     )
+    sorted_scores = ragretriever.reranker.predict(
+        [pairs[i] for i in order],
+        batch_size=batch_size,
+        show_progress_bar=True,
+    )
+    scores: list[float] = [0.0] * len(pairs)
+    for idx, score in zip(order, sorted_scores, strict=True):
+        scores[idx] = float(score)
 
     reranked_results: dict[str, dict[str, float]] = {}
     for query_id, (start, end) in offsets.items():
