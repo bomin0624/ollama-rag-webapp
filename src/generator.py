@@ -5,14 +5,10 @@ from src.config import (
     GENERATE_MODEL,
     OLLAMA_TIMEOUT,
     OLLAMA_URL,
-    VECTOR_DB_DIR,
 )
 from src.retriever.retriever import (
     RAGRetriever,
-    get_retriever,
 )
-
-DB_DIRECTORY = str(VECTOR_DB_DIR)
 
 ollama_client = ollama.Client(
     host=OLLAMA_URL,
@@ -46,8 +42,6 @@ def build_prompt(
 def generate_response_with_sources(
     query: str, retriever: RAGRetriever
 ) -> tuple[str, list[Document]]:
-    if retriever is None:
-        retriever = get_retriever(DB_DIRECTORY)
     prompt, retrieved_docs = build_prompt(query, retriever=retriever)
     result = ollama_client.chat(
         model=GENERATE_MODEL,
