@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+import torch
 from langchain_chroma import Chroma
 from langchain_classic.retrievers import EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
@@ -8,6 +9,7 @@ from sentence_transformers import CrossEncoder
 
 from src.config import (
     EMBEDDING_MODEL,
+    RERANK_DTYPE,
     RERANK_RETURN_N,
     RERANKER_MODEL,
     RETRIEVER_TYPE,
@@ -18,6 +20,22 @@ from src.retriever.utils import (
     build_embedding_model,
     rerank_documents,
 )
+
+
+def _rerank_dtype() -> torch.dtype:
+    """Resolve RERANK_DTYPE into a torch dtype, failing fast on typos."""
+    allowed = {
+        "float32": torch.float32,
+        "float16": torch.float16,
+        "bfloat16": torch.bfloat16,
+    }
+    try:
+        return allowed[RERANK_DTYPE]
+    except KeyError as e:
+        choices = ", ".join(allowed)
+        raise ValueError(
+            f"Invalid RERANK_DTYPE: {RERANK_DTYPE!r}. Choose one of: {choices}"
+        ) from e
 
 
 class RAGRetriever:
@@ -37,8 +55,13 @@ class RAGRetriever:
         self.retriever = self.vector_store.as_retriever(
             search_kwargs={"k": search_k}
         )
-        print(f"Loading reranker model: {reranker_model}")
-        self.reranker = CrossEncoder(reranker_model)
+        print(
+            f"Loading reranker model: {reranker_model} (dtype: {RERANK_DTYPE})"
+        )
+        self.reranker = CrossEncoder(
+            reranker_model,
+            model_kwargs={"torch_dtype": _rerank_dtype()},
+        )
 
     def retrieve_and_rerank(
         self, query: str, top_n: int = RERANK_RETURN_N
