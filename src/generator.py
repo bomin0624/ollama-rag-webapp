@@ -1,5 +1,6 @@
 import ollama
 from langchain_core.documents import Document
+from langsmith import traceable
 
 from src.config import (
     GENERATE_MODEL,
@@ -39,6 +40,7 @@ def build_prompt(
     return prompt, retrieved_docs
 
 
+@traceable(name="rag-query", run_type="chain")
 def generate_response_with_sources(
     query: str, retriever: RAGRetriever
 ) -> tuple[str, list[Document]]:
