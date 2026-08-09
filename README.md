@@ -15,8 +15,8 @@ flowchart LR
     Retriever --> BM25[BM25 search]
     Vector --> Reranker[Cross-encoder reranker]
     BM25 --> Reranker
-    Reranker --> Ollama[Ollama / llama3.1]
-    Ollama --> API
+    Reranker --> LLM[LLM backend / llama3.1]
+    LLM --> API
 ```
 
 By default, the application uses hybrid retrieval:
@@ -27,8 +27,8 @@ By default, the application uses hybrid retrieval:
 3. Reciprocal-rank fusion combines both result sets.
 4. `BAAI/bge-reranker-v2-m3` reranks the candidates and keeps the best three
    distinct source documents.
-5. The selected content is supplied to the Ollama generation model
-   (`llama3.1` by default).
+5. The selected content is supplied to the configured LLM backend
+   (`llama3.1` on Ollama by default).
 
 The vector database is created automatically on the first application start.
 The build downloads `nfcorpus`, splits its documents into 2,048-character
@@ -45,6 +45,23 @@ embeddings in `vectordatabase/`.
 An NVIDIA GPU is optional, but the supplied Compose configuration requests one
 for both services. Remove the `deploy.resources.reservations.devices` blocks
 from `docker-compose.yml` when running without NVIDIA GPU support.
+
+## LLM backend
+
+Answer generation goes through the `LLMClient` protocol in `src/model.py`,
+so which backend serves the model is a configuration choice rather than a code
+change. Configure it with environment variables:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `LLM_BACKEND` | `ollama` | Chat backend to use. Currently only `ollama` is registered. |
+| `LLM_BASE_URL` | `http://localhost:11434` | Base URL of the backend. |
+| `LLM_TIMEOUT` | `120` | Request timeout in seconds. |
+| `GENERATE_MODEL` | `llama3.1` | Model name, spelled the way the backend knows it. |
+
+The client is built during app startup, so an unknown `LLM_BACKEND` fails the
+boot with a `ValueError` listing the accepted values rather than failing the
+first query.
 
 ## Run locally
 
@@ -87,13 +104,13 @@ docker exec -it ollama ollama pull llama3.1
 Compose persists datasets, Chroma data, logs, and Ollama models in the local
 `datasets/`, `vectordatabase/`, `log/`, and `ollama/` directories.
 
-The API container uses `OLLAMA_URL=http://ollama:11434`.
+The API container uses `LLM_BASE_URL=http://ollama:11434`.
 
 ## LangSmith tracing
 
 The answer-generation chain is instrumented with LangSmith as `rag-query`.
 When tracing is enabled, each `/query` request produces a trace containing the
-retrieval-backed prompt and the Ollama generation call.
+retrieval-backed prompt and the LLM backend's generation call.
 
 ### Docker Compose
 
@@ -124,7 +141,7 @@ project in LangSmith.
    automatically after it receives its first trace.
 
 Each request is displayed as a `rag-query` trace with child runs for
-`retrieve-and-rerank` and `ollama-chat`.
+`retrieve-and-rerank` and `llm-chat`.
 
 ### Local development
 
@@ -196,13 +213,14 @@ Project defaults live in `src/config.py`.
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
-| `GENERATE_MODEL` | `llama3.1` | Ollama model used to generate answers. |
+| `GENERATE_MODEL` | `llama3.1` | Model used to generate answers. |
 | `RETRIEVER_TYPE` | `hybrid` | Retrieval mode: `hybrid` or `vector`. |
 | `SEARCH_K` | `200` | Candidate chunks collected before reranking. |
 | `RERANK_RETURN_N` | `3` | Number of distinct source documents returned. |
 | `EMBED_TRUNCATE_DIM` | `512` | Embedding dimension; may be overridden with an environment variable. |
-| `OLLAMA_URL` | `http://localhost:11434` | Ollama server URL. |
-| `OLLAMA_TIMEOUT` | `120` | Ollama request timeout in seconds. |
+| `LLM_BACKEND` | `ollama` | Chat backend that serves the model. |
+| `LLM_BASE_URL` | `http://localhost:11434` | Backend server URL. |
+| `LLM_TIMEOUT` | `120` | Backend request timeout in seconds. |
 
 The persisted Chroma collection has a fixed embedding dimension. If you change
 `EMBED_TRUNCATE_DIM` or the embedding model, remove `vectordatabase/` and let
@@ -316,7 +334,8 @@ is not calculated for that stage: initial retrieval is evaluated at
 ```text
 main.py                   FastAPI application and startup lifecycle
 src/routes.py             Health and query endpoints
-src/generator.py          Prompt construction and Ollama generation
+src/generator.py          Prompt construction and answer generation
+src/model.py              LLMClient protocol and backend registry
 src/retriever/            Chroma, BM25, and reranking implementation
 src/config.py             Models, retrieval, chunking, and path settings
 evaluate/evaluation.py    BEIR retrieval evaluation entry point

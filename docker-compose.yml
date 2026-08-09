@@ -6,8 +6,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - OLLAMA_URL=http://ollama:11434
-      - OLLAMA_TIMEOUT=120
+      - LLM_BACKEND=ollama
+      - LLM_BASE_URL=http://ollama:11434
+      - LLM_TIMEOUT=120
       - LANGSMITH_API_KEY=${LANGSMITH_API_KEY:?LANGSMITH_API_KEY is required}
       - LANGSMITH_TRACING=true
       - LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-rag-dev}

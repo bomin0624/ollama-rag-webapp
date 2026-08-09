@@ -1,6 +1,6 @@
 from langchain_core.documents import Document
 
-from src.generator import build_prompt
+from src.generator import build_prompt, generate_response_with_sources
 
 
 class FakeRetriever:
@@ -11,6 +11,18 @@ class FakeRetriever:
 
     def retrieve_and_rerank(self, query: str) -> list[Document]:
         return self.documents
+
+
+class FakeLLMClient:
+    """Satisfies LLMClient, recording prompts and returning a canned answer."""
+
+    def __init__(self, answer: str = "canned answer"):
+        self.answer = answer
+        self.prompts: list[str] = []
+
+    def chat(self, prompt: str) -> str:
+        self.prompts.append(prompt)
+        return self.answer
 
 
 def test_build_prompt_includes_query_and_retrieved_documents():
@@ -52,3 +64,24 @@ def test_build_prompt_falls_back_to_unknown_id():
     )
 
     assert "Document unknown_id:\nUntagged chunk." in prompt
+
+
+def test_generate_response_sends_the_prompt_to_the_injected_client():
+    documents = [
+        Document(
+            page_content="Statins are well tolerated.",
+            metadata={"id": "MED-335"},
+        )
+    ]
+    client = FakeLLMClient("Statins are safe.")
+
+    answer, sources = generate_response_with_sources(
+        "Do statins cause cancer?",
+        retriever=FakeRetriever(documents),
+        client=client,
+    )
+
+    assert answer == "Statins are safe."
+    assert sources == documents
+    assert "Do statins cause cancer?" in client.prompts[0]
+    assert "Document MED-335:" in client.prompts[0]

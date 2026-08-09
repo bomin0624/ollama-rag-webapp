@@ -28,10 +28,15 @@ EMBEDDING_MODEL = "mixedbread-ai/mxbai-embed-large-v1"
 
 RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "120"))
+# Chat backend used for answer generation. Backends are registered in
+# LLM_CLIENT_CLASSES in src/model.py, which also validates this value.
+LLM_BACKEND = os.getenv("LLM_BACKEND", "ollama")
 
-GENERATE_MODEL = "llama3.1"  # Model name for generation
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:11434")
+LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
+
+# Model name for generation, spelled the way the backend knows it.
+GENERATE_MODEL = os.getenv("GENERATE_MODEL", "llama3.1")
 
 RETRIEVER_TYPE = "hybrid"  # Options: "hybrid" or "vector"
 
