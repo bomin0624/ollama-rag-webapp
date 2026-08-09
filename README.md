@@ -57,7 +57,7 @@ change. Configure it with environment variables:
 | Variable | Default | Description |
 | --- | --- | --- |
 | `LLM_BACKEND` | `ollama` | Chat backend to use: `ollama` or `vllm`. |
-| `LLM_BASE_URL` | per backend | `http://localhost:11434` for `ollama`, `http://localhost:8000` for `vllm`. |
+| `LLM_BASE_URL` | per backend | `http://localhost:11434` for `ollama`, `http://localhost:8001` for `vllm`. |
 | `LLM_TIMEOUT` | `120` | Request timeout in seconds. |
 | `GENERATE_MODEL` | per backend | `llama3.1` for `ollama`, `Qwen/Qwen2.5-1.5B-Instruct` for `vllm`. |
 | `LLM_API_KEY` | `EMPTY` | Only used by `vllm`, and only if it was started with `--api-key`. |

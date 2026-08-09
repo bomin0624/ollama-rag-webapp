@@ -33,7 +33,13 @@ class OllamaClient:
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
         )
-        return result["message"]["content"]
+        content = result["message"].get("content")
+        if not content:
+            raise ValueError(
+                f"{self.model} returned no content "
+                f"(done_reason={result.get('done_reason')!r})."
+            )
+        return content
 
 
 class VLLMClient:
@@ -58,15 +64,17 @@ class VLLMClient:
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
         )
+        if not result.choices:
+            raise ValueError(f"{self.model} returned no choices.")
+
         choice = result.choices[0]
-        if choice.message.content is None:
-            # Happens when the model emits no text at all, e.g. it hit the
-            # token limit first. Returning "" here would look like an answer.
+        content = choice.message.content
+        if not content:
             raise ValueError(
                 f"{self.model} returned no content "
                 f"(finish_reason={choice.finish_reason!r})."
             )
-        return choice.message.content
+        return content
 
 
 LLM_CLIENT_CLASSES = {

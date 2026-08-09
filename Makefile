@@ -93,6 +93,8 @@ run:
 backend: check-backend backend-down
 	LLM_BACKEND=$(BACKEND) LLM_BASE_URL=$(BACKEND_URL) \
 		$(COMPOSE) --profile $(BACKEND) up -d
+	@test '$(BACKEND)' != ollama || \
+		$(MAKE) --no-print-directory wait-backend ollama-pull BACKEND=ollama
 
 # Naming the service skips the api container, leaving the GPU to `make run`.
 backend-only: check-backend backend-down

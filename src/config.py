@@ -32,10 +32,9 @@ RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 # LLM_CLIENT_CLASSES in src/model.py, which also validates this value.
 LLM_BACKEND = os.getenv("LLM_BACKEND", "ollama")
 
-# Ollama listens on 11434; vLLM's OpenAI-compatible server listens on 8000.
 DEFAULT_LLM_BASE_URLS = {
     "ollama": "http://localhost:11434",
-    "vllm": "http://localhost:8000",
+    "vllm": "http://localhost:8001",
 }
 
 DEFAULT_GENERATE_MODELS = {
