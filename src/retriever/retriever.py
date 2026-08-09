@@ -4,6 +4,7 @@ from langchain_chroma import Chroma
 from langchain_classic.retrievers import EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
+from langsmith import traceable
 from sentence_transformers import CrossEncoder
 
 from src.config import (
@@ -40,6 +41,7 @@ class RAGRetriever:
         print(f"Loading reranker model: {reranker_model}")
         self.reranker = CrossEncoder(reranker_model)
 
+    @traceable(name="retrieve-and-rerank", run_type="retriever")
     def retrieve_and_rerank(
         self, query: str, top_n: int = RERANK_RETURN_N
     ) -> list[Document]:

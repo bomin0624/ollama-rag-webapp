@@ -40,13 +40,25 @@ def build_prompt(
     return prompt, retrieved_docs
 
 
-@traceable(name="rag-query", run_type="chain")
-def generate_response_with_sources(
-    query: str, retriever: RAGRetriever
-) -> tuple[str, list[Document]]:
-    prompt, retrieved_docs = build_prompt(query, retriever=retriever)
+@traceable(
+    name="ollama-chat", run_type="llm", metadata={"model": GENERATE_MODEL}
+)
+def _chat(prompt: str) -> str:
     result = ollama_client.chat(
         model=GENERATE_MODEL,
         messages=[{"role": "user", "content": prompt}],
     )
-    return result["message"]["content"], retrieved_docs
+    return result["message"]["content"]
+
+
+@traceable(
+    name="rag-query",
+    run_type="chain",
+    process_inputs=lambda inputs: {"query": inputs["query"]},
+)
+def generate_response_with_sources(
+    query: str, retriever: RAGRetriever
+) -> tuple[str, list[Document]]:
+    prompt, retrieved_docs = build_prompt(query, retriever=retriever)
+    result = _chat(prompt)
+    return result, retrieved_docs
