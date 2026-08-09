@@ -32,11 +32,30 @@ RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 # LLM_CLIENT_CLASSES in src/model.py, which also validates this value.
 LLM_BACKEND = os.getenv("LLM_BACKEND", "ollama")
 
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:11434")
+# Ollama listens on 11434; vLLM's OpenAI-compatible server listens on 8000.
+DEFAULT_LLM_BASE_URLS = {
+    "ollama": "http://localhost:11434",
+    "vllm": "http://localhost:8000",
+}
+
+DEFAULT_GENERATE_MODELS = {
+    "ollama": "llama3.1",
+    "vllm": "Qwen/Qwen2.5-1.5B-Instruct",
+}
+
+# An unknown backend leaves these empty; get_llm_client() is what reports it.
+LLM_BASE_URL = os.getenv(
+    "LLM_BASE_URL", DEFAULT_LLM_BASE_URLS.get(LLM_BACKEND, "")
+)
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
 
-# Model name for generation, spelled the way the backend knows it.
-GENERATE_MODEL = os.getenv("GENERATE_MODEL", "llama3.1")
+GENERATE_MODEL = os.getenv(
+    "GENERATE_MODEL", DEFAULT_GENERATE_MODELS.get(LLM_BACKEND, "")
+)
+
+# vLLM serves without authentication unless started with --api-key, but the
+# OpenAI SDK still requires a non-empty key.
+LLM_API_KEY = os.getenv("LLM_API_KEY", "EMPTY")
 
 RETRIEVER_TYPE = "hybrid"  # Options: "hybrid" or "vector"
 

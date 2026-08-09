@@ -6,18 +6,28 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - LLM_BACKEND=ollama
-      - LLM_BASE_URL=http://ollama:11434
-      - LLM_TIMEOUT=120
       - LANGSMITH_API_KEY=${LANGSMITH_API_KEY:?LANGSMITH_API_KEY is required}
       - LANGSMITH_TRACING=true
       - LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-rag-dev}
+      - LLM_BACKEND=${LLM_BACKEND:-ollama}
+      - LLM_BASE_URL=${LLM_BASE_URL:-http://ollama:11434}
+      - LLM_TIMEOUT=${LLM_TIMEOUT:-120}
+      # Unset falls through to the defaults in src/config.py.
+      - GENERATE_MODEL
+      - LLM_API_KEY
     volumes:
       - ./datasets:/app/datasets
       - ./vectordatabase:/app/vectordatabase
       - ./log:/app/log
+    # required: false keeps a backend out of the way when its profile is off,
+    # instead of pulling it in as an implicit dependency.
     depends_on:
-      - ollama
+      ollama:
+        condition: service_started
+        required: false
+      vllm:
+        condition: service_healthy
+        required: false
     restart: unless-stopped
     # Enable GPU support
     deploy:
@@ -30,6 +40,7 @@ services:
   ollama:
     image: ollama/ollama:0.32.1
     container_name: ollama
+    profiles: ["ollama"]
     restart: unless-stopped
     ports:
       - "11434:11434"
@@ -37,6 +48,56 @@ services:
       - ./ollama:/root/.ollama
     environment:
       - OLLAMA_HOST=0.0.0.0
+    # Enable GPU support
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+  vllm:
+    image: vllm/vllm-openai:v0.26.0
+    container_name: vllm
+    profiles: ["vllm"]
+    # vLLM fails at engine init when it fails at all (bad model id, not enough
+    # VRAM), and those failures do not fix themselves. unless-stopped turns
+    # them into an endless crash loop that holds the GPU and floods the logs.
+    restart: on-failure:3
+    # The api already owns host port 8000; vLLM serves on 8000 in-container.
+    ports:
+      - "8001:8000"
+    volumes:
+      - ${HF_HOME:-~/.cache/huggingface}:/root/.cache/huggingface
+    environment:
+      # Only needed for gated repos such as meta-llama/*.
+      - HF_TOKEN=${HF_TOKEN:-}
+      # On WSL2 vLLM disables pinned memory by default even on kernels that
+      # support it, and the V1 engine's V2 model runner then aborts with
+      # "UVA is not available". Ignored off WSL, where pinning is always on.
+      - VLLM_WSL2_ENABLE_PIN_MEMORY=${VLLM_WSL2_ENABLE_PIN_MEMORY:-1}
+    # vLLM's workers communicate over host shared memory.
+    ipc: host
+    command:
+      # Positional: --model is deprecated in `vllm serve`. Same expression as
+      # the api service, so the two cannot drift apart.
+      - ${GENERATE_MODEL:-Qwen/Qwen2.5-1.5B-Instruct}
+      # The api container holds the embedding and reranker models on the same
+      # GPU, so vLLM must not claim the whole card. Raise on a bigger GPU.
+      - --gpu-memory-utilization=0.45
+      - --max-model-len=4096
+    healthcheck:
+      # The image ships python3 but not curl.
+      test:
+        - CMD
+        - python3
+        - -c
+        - import urllib.request; urllib.request.urlopen("http://localhost:8000/health")
+      interval: 15s
+      timeout: 5s
+      retries: 40
+      # Weight download plus CUDA graph capture can take several minutes.
+      start_period: 600s
     # Enable GPU support
     deploy:
       resources:

@@ -9,6 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
+# Compose picks this up automatically if it exists; the project does not ship one.
+.env
+
 
 datasets/
 
