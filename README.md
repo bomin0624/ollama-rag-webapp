@@ -114,6 +114,18 @@ LANGSMITH_PROJECT=rag-dev
 Start the stack with `docker compose up --build -d`, then view the `rag-dev`
 project in LangSmith.
 
+### View traces in LangSmith
+
+1. Open [LangSmith](https://smith.langchain.com/) and sign in to the workspace
+   associated with `LANGSMITH_API_KEY`.
+2. Send a request to `POST /query` (for example, from the FastAPI Swagger UI at
+   [http://localhost:8000/docs](http://localhost:8000/docs)).
+3. In LangSmith, open **Projects** and select `rag-dev`. The project is created
+   automatically after it receives its first trace.
+
+Each request is displayed as a `rag-query` trace with child runs for
+`retrieve-and-rerank` and `ollama-chat`.
+
 ### Local development
 
 Export the variables before starting the API (shown with POSIX shell syntax):
