@@ -27,7 +27,6 @@ HEALTH_PATH = $(HEALTH_PATH_$(BACKEND))
 # 5-second steps, so 120 is a 10-minute ceiling for vLLM's cold start.
 BACKEND_WAIT_TRIES ?= 120
 
-# Mirrors DEFAULT_GENERATE_MODELS["ollama"] in src/config.py.
 OLLAMA_MODEL ?= $(or $(GENERATE_MODEL),llama3.1)
 
 .PHONY: help install format format-check lint test evaluate ci \
@@ -54,11 +53,13 @@ help:
 	@printf "  backend-only  Start just the backend container\n"
 	@printf "  backend-down  Stop the API and every backend\n"
 
-# The two supported lines
-ollama: BACKEND = ollama
+# The two supported lines. `override`, because a command-line BACKEND= would
+# otherwise outrank the target-specific value and turn `make ollama
+# BACKEND=vllm` into a vLLM start followed by a pull against a dead ollama.
+ollama: override BACKEND = ollama
 ollama: backend-only wait-backend ollama-pull run
 
-vllm: BACKEND = vllm
+vllm: override BACKEND = vllm
 vllm: backend-only wait-backend run
 
 install:
@@ -83,9 +84,13 @@ evaluate:
 
 ci: format-check test
 
-# Published port, since Compose service names do not resolve on the host.
-run:
-	LLM_BACKEND=$${LLM_BACKEND:-$(BACKEND)} \
+run: check-backend
+	@test -z "$$LLM_BACKEND" || test "$$LLM_BACKEND" = '$(BACKEND)' || { \
+		printf 'LLM_BACKEND=%s conflicts with BACKEND=%s. Unset one.\n' \
+			"$$LLM_BACKEND" '$(BACKEND)'; \
+		exit 1; \
+	}
+	LLM_BACKEND=$(BACKEND) \
 	LLM_BASE_URL=$${LLM_BASE_URL:-$(LOCAL_BACKEND_URL)} \
 		$(UV) run uvicorn $(APP) --host $(HOST) --port $(PORT) --reload
 

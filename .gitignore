@@ -12,7 +12,6 @@ wheels/
 # Compose picks this up automatically if it exists; the project does not ship one.
 .env
 
-
 datasets/
 
 log/
@@ -26,5 +25,3 @@ ollama
 .vscode
 
 skills/
-
-.env

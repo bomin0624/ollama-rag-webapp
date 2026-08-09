@@ -48,10 +48,10 @@ async def lifespan(app: FastAPI):
     logging.info("Warming up retriever (models + BM25 index)...")
     get_retriever(str(VECTOR_DB_DIR))
     logging.info("Retriever is ready.")
-    # Build the LLM client here so a misconfigured backend fails the boot
+    # Resolve the backend name here so an unknown LLM_BACKEND fails the boot
     # instead of the first query.
     get_llm_client()
-    logging.info("LLM backend %r is ready.", LLM_BACKEND)
+    logging.info("LLM client for backend %r constructed.", LLM_BACKEND)
 
     yield
 

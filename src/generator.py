@@ -52,5 +52,5 @@ def generate_response_with_sources(
     client: LLMClient | None = None,
 ) -> tuple[str, list[Document]]:
     prompt, retrieved_docs = build_prompt(query, retriever=retriever)
-    llm_client = client or get_llm_client()
+    llm_client = get_llm_client() if client is None else client
     return _chat(prompt, llm_client), retrieved_docs

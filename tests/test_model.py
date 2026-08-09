@@ -9,25 +9,43 @@ from src.model import (
     get_llm_client,
 )
 
+# Ollama drops "content" from the message on some replies, which is a
+# different wire shape from sending it as null.
+ABSENT = object()
+
 
 class FakeOllamaAPI:
     """Stands in for ollama.Client, recording the chat calls it receives."""
 
-    def __init__(self, content: str = "canned answer"):
+    def __init__(
+        self,
+        content: object = "canned answer",
+        done_reason: str = "stop",
+    ):
         self.content = content
+        self.done_reason = done_reason
         self.calls: list[dict] = []
 
     def chat(self, **kwargs):
         self.calls.append(kwargs)
-        return {"message": {"role": "assistant", "content": self.content}}
+        message = {"role": "assistant"}
+        if self.content is not ABSENT:
+            message["content"] = self.content
+        return {"message": message, "done_reason": self.done_reason}
 
 
 class FakeCompletions:
     """Stands in for OpenAI().chat.completions."""
 
-    def __init__(self, content: str | None, finish_reason: str = "stop"):
+    def __init__(
+        self,
+        content: str | None = "canned answer",
+        finish_reason: str = "stop",
+        choice_count: int = 1,
+    ):
         self.content = content
         self.finish_reason = finish_reason
+        self.choice_count = choice_count
         self.calls: list[dict] = []
 
     def create(self, **kwargs):
@@ -36,7 +54,7 @@ class FakeCompletions:
             message=SimpleNamespace(content=self.content),
             finish_reason=self.finish_reason,
         )
-        return SimpleNamespace(choices=[choice])
+        return SimpleNamespace(choices=[choice] * self.choice_count)
 
 
 def build_vllm_client(completions: FakeCompletions, **kwargs) -> VLLMClient:
@@ -135,8 +153,31 @@ def test_vllm_client_sends_the_prompt_and_returns_the_content():
     ]
 
 
-def test_vllm_client_raises_when_the_model_returns_no_content():
-    client = build_vllm_client(FakeCompletions(None, finish_reason="length"))
+@pytest.mark.parametrize("content", [None, ""], ids=["null", "empty-string"])
+def test_vllm_client_raises_when_the_model_returns_no_content(content):
+    client = build_vllm_client(
+        FakeCompletions(content, finish_reason="length")
+    )
+
+    with pytest.raises(ValueError, match="returned no content"):
+        client.chat("Do statins cause cancer?")
+
+
+def test_vllm_client_raises_when_the_response_has_no_choices():
+    client = build_vllm_client(FakeCompletions(choice_count=0))
+
+    with pytest.raises(ValueError, match="returned no choices"):
+        client.chat("Do statins cause cancer?")
+
+
+@pytest.mark.parametrize(
+    "content", [None, "", ABSENT], ids=["null", "empty-string", "absent"]
+)
+def test_ollama_client_raises_when_the_model_returns_no_content(content):
+    client = OllamaClient(
+        base_url="http://localhost:11434", timeout=5.0, model="llama3.1"
+    )
+    client.client = FakeOllamaAPI(content, done_reason="length")
 
     with pytest.raises(ValueError, match="returned no content"):
         client.chat("Do statins cause cancer?")

@@ -79,15 +79,15 @@ services:
     # vLLM's workers communicate over host shared memory.
     ipc: host
     command:
-      # Positional: --model is deprecated in `vllm serve`. Same expression as
-      # the api service, so the two cannot drift apart.
+      # Positional: --model is deprecated in `vllm serve`. Hand-synced with
+      # DEFAULT_GENERATE_MODELS["vllm"] in src/config.py; the api service
+      # resolves its own default, so both literals must be edited together.
       - ${GENERATE_MODEL:-Qwen/Qwen2.5-1.5B-Instruct}
       # The api container holds the embedding and reranker models on the same
       # GPU, so vLLM must not claim the whole card. Raise on a bigger GPU.
       - --gpu-memory-utilization=0.45
       - --max-model-len=4096
     healthcheck:
-      # The image ships python3 but not curl.
       test:
         - CMD
         - python3

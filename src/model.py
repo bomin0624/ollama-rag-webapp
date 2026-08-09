@@ -83,8 +83,8 @@ LLM_CLIENT_CLASSES = {
 }
 
 
-# Built lazily so that importing this module never reads backend
-# configuration, and cached so connection setup is paid only once.
+# Cached so connection setup is paid only once. The configuration itself is
+# read at import, so changing the environment after that has no effect.
 @lru_cache(maxsize=1)
 def get_llm_client() -> LLMClient:
     """Gets or creates the cached client for ``LLM_BACKEND``."""
