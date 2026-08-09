@@ -8,6 +8,9 @@ services:
     environment:
       - OLLAMA_URL=http://ollama:11434
       - OLLAMA_TIMEOUT=120
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY:?LANGSMITH_API_KEY is required}
+      - LANGSMITH_TRACING=true
+      - LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-rag-dev}
     volumes:
       - ./datasets:/app/datasets
       - ./vectordatabase:/app/vectordatabase
