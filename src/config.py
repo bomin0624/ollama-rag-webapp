@@ -28,6 +28,13 @@ EMBEDDING_MODEL = "mixedbread-ai/mxbai-embed-large-v1"
 
 RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 
+# Torch dtype for the cross-encoder reranker: "float32", "float16", or
+# "bfloat16". float32 is the safe default across GPUs; float16 roughly
+# doubles throughput on T4/A100, bfloat16 needs Ampere+ (A100 yes, T4 no).
+# If a future reranker model produces NaN or degenerate scores in half
+# precision, switch back to float32 to rule out a precision issue.
+RERANK_DTYPE = os.getenv("RERANK_DTYPE", "float32")
+
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "120"))
 
@@ -44,3 +51,6 @@ EMBED_TRUNCATE_DIM = int(os.environ.get("EMBED_TRUNCATE_DIM", "512"))
 # max_length * 4 = chunk_size; chunk_overlap = chunk_size * 0.10 ~ 0.25
 CHUNK_SIZE = 2048
 CHUNK_OVERLAP = 300
+
+# Evaluation parameters
+DEFAULT_WORKERS = 4

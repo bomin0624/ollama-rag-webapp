@@ -5,45 +5,38 @@ import time
 from beir import util
 from beir.datasets.data_loader import GenericDataLoader
 from beir.retrieval.evaluation import EvaluateRetrieval
-from tqdm import tqdm
 
+from evaluate.utils import (
+    build_retriever,
+    chunks_to_initial_results,
+    rerank_all_queries,
+    run_retrieval,
+    setup_logging,
+)
 from src.config import (
     DATASET_URL,
     DATASETS_DIR,
+    DEFAULT_WORKERS,
     EMBED_TRUNCATE_DIM,
-    EMBEDDING_MODEL,
-    LOG_DIR,
     RERANK_BATCH_SIZE,
-    RERANKER_MODEL,
     RETRIEVER_TYPE,
     SEARCH_K,
     VECTOR_DB_DIR,
-)
-from src.retriever.retriever import (
-    HybridRetriever,
-    RAGRetriever,
 )
 from src.retriever.utils import initialize_vector_database
 
 
 def evaluate_retriever(
-    retriever_type: str = RETRIEVER_TYPE, split: str = "dev"
+    retriever_type: str = RETRIEVER_TYPE,
+    split: str = "dev",
+    workers: int = DEFAULT_WORKERS,
+    rerank_batch_size: int = RERANK_BATCH_SIZE,
 ) -> None:
     """
     Evaluate the retriever performance using Recall@30
     for initial retrieval and NDCG@3 for reranked results.
     """
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    log_file_path = str(LOG_DIR / f"nfcorpus_{retriever_type}_{split}.log")
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.FileHandler(log_file_path, mode="w"),
-            logging.StreamHandler(),
-        ],
-    )
+    setup_logging(retriever_type, split)
 
     data_path = util.download_and_unzip(DATASET_URL, str(DATASETS_DIR))
     corpus, queries, qrels = GenericDataLoader(data_path).load(split=split)
@@ -54,53 +47,23 @@ def evaluate_retriever(
     db_directory = str(VECTOR_DB_DIR)
     initialize_vector_database(db_directory)
 
-    if retriever_type == "hybrid":
-        ragretriever = HybridRetriever(
-            db_directory=db_directory,
-            embedding_model=EMBEDDING_MODEL,
-            reranker_model=RERANKER_MODEL,
-            search_k=SEARCH_K,
-        )
-    elif retriever_type == "vector":
-        ragretriever = RAGRetriever(
-            db_directory=db_directory,
-            embedding_model=EMBEDDING_MODEL,
-            reranker_model=RERANKER_MODEL,
-            search_k=SEARCH_K,
-        )
-    else:
-        raise ValueError(f"Unknown retriever type: {retriever_type}")
+    ragretriever = build_retriever(retriever_type, db_directory)
 
     # Warm up the retriever so the first query's cold-start cost (lazy model
-    # loading, CUDA kernel compilation) is excluded from the timed loop.
+    # loading, CUDA kernel compilation) is excluded from the timed loop and
+    # lazy initialization happens before worker threads start.
     warmup_query = next(iter(queries.values()))
     ragretriever.retriever.invoke(warmup_query)
 
     logging.info(f"--- Evaluating Initial Retrieval (Top {SEARCH_K}) ---")
-    initial_results = {}
-    retriever_cache_result = {}
     retrieval_start = time.perf_counter()
-    for query_id, query_text in tqdm(
-        queries.items(), desc="Initial Retriever"
-    ):
-        retrieved_chunks = ragretriever.retriever.invoke(
-            query_text
-        )  # will return the list that already sorted by the retriever
-        retriever_cache_result[query_id] = retrieved_chunks
-        query_results = {}
-        for rank, chunk in enumerate(retrieved_chunks):
-            doc_id = chunk.metadata["id"]
-            if doc_id not in query_results:
-                query_results[doc_id] = 1.0 / (rank + 1)
-                # for BEIR to calculate the metrics, we need to assign a score
-                # to each retrieved document.
-        query_results = dict(
-            sorted(query_results.items(), key=lambda x: x[1], reverse=True)[
-                :SEARCH_K
-            ]
-        )
-        initial_results[query_id] = query_results
+    retrieved = run_retrieval(ragretriever, queries, workers=workers)
     retrieval_time = time.perf_counter() - retrieval_start
+
+    initial_results = {
+        query_id: chunks_to_initial_results(chunks, SEARCH_K)
+        for query_id, chunks in retrieved.items()
+    }
 
     # Evaluate initial retrieval using Recall@30
     evaluator = EvaluateRetrieval()
@@ -122,36 +85,13 @@ def evaluate_retriever(
 
     # Warm up the reranker for the same cold-start reason as the retriever.
     ragretriever.reranker.predict(
-        [(warmup_query, warmup_query)], batch_size=RERANK_BATCH_SIZE
+        [(warmup_query, warmup_query)], batch_size=rerank_batch_size
     )
 
-    reranked_results = {}
     rerank_start = time.perf_counter()
-    for query_id, query_text in tqdm(queries.items(), desc="Reranking"):
-        retrieved_chunks = retriever_cache_result[query_id]
-        if not retrieved_chunks:
-            reranked_results[query_id] = {}
-            continue
-        pairs = [
-            (query_text, chunk.page_content) for chunk in retrieved_chunks
-        ]
-        scores = ragretriever.reranker.predict(
-            pairs, batch_size=RERANK_BATCH_SIZE
-        )
-        scored_chunks = sorted(
-            zip(scores, retrieved_chunks, strict=False),
-            key=lambda x: x[0],
-            reverse=True,
-        )
-
-        query_results = {}
-        seen_ids = set()
-        for score, chunk in scored_chunks:
-            doc_id = chunk.metadata["id"]
-            if doc_id not in seen_ids:
-                query_results[doc_id] = float(score)
-                seen_ids.add(doc_id)
-        reranked_results[query_id] = query_results
+    reranked_results = rerank_all_queries(
+        ragretriever, queries, retrieved, batch_size=rerank_batch_size
+    )
     rerank_time = time.perf_counter() - rerank_start
 
     # Evaluate reranked results using NDCG@3
@@ -166,14 +106,15 @@ def evaluate_retriever(
     logging.info("--- Embedding Dimension & Timing ---")
     logging.info(f"Embedding truncate dim: {EMBED_TRUNCATE_DIM}")
     logging.info(
-        f"Initial retrieval time: {retrieval_time:.2f}s "
-        f"total, {retrieval_time / num_queries * 1000:.2f}ms/query "
-        f"({num_queries} queries)"
+        f"Initial retrieval time: {retrieval_time:.2f}s total, "
+        f"{retrieval_time / num_queries * 1000:.2f}ms/query throughput "
+        f"({num_queries} queries, {workers} workers; per-query latency "
+        f"only when workers=1)"
     )
     logging.info(
-        f"Reranking time: {rerank_time:.2f}s "
-        f"total, {rerank_time / num_queries * 1000:.2f}ms/query "
-        f"({num_queries} queries)"
+        f"Reranking time: {rerank_time:.2f}s total, "
+        f"{rerank_time / num_queries * 1000:.2f}ms/query throughput "
+        f"({num_queries} queries, batched across queries)"
     )
     logging.info(f"Total time: {retrieval_time + rerank_time:.2f}s")
 
@@ -194,5 +135,37 @@ if __name__ == "__main__":
         default="dev",
         help="Choose the dataset split to evaluate on",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=DEFAULT_WORKERS,
+        help=(
+            "Number of concurrent retrieval workers. Retrieval runs "
+            "locally (HuggingFace embeddings + Chroma + BM25); torch "
+            "releases the GIL during encoding, so a few threads still "
+            "help. Use 1 for sequential behaviour."
+        ),
+    )
+    parser.add_argument(
+        "--rerank-batch-size",
+        type=int,
+        default=RERANK_BATCH_SIZE,
+        help=(
+            "Batch size for the cross-encoder reranker's predict() call. "
+            "Larger values use more GPU memory but keep the GPU better "
+            f"saturated. Defaults to RERANK_BATCH_SIZE ({RERANK_BATCH_SIZE})."
+        ),
+    )
     args = parser.parse_args()
-    evaluate_retriever(retriever_type=args.retriever, split=args.split)
+    if args.workers < 1:
+        parser.error("--workers must be >= 1")
+
+    if args.rerank_batch_size < 1:
+        parser.error("--rerank-batch-size must be >= 1")
+
+    evaluate_retriever(
+        retriever_type=args.retriever,
+        split=args.split,
+        workers=args.workers,
+        rerank_batch_size=args.rerank_batch_size,
+    )
