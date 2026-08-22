@@ -1,19 +1,10 @@
-import ollama
 from langchain_core.documents import Document
 from langsmith import traceable
 
-from src.config import (
-    GENERATE_MODEL,
-    OLLAMA_TIMEOUT,
-    OLLAMA_URL,
-)
+from src.config import GENERATE_MODEL
+from src.model import LLMClient, get_llm_client
 from src.retriever.retriever import (
     RAGRetriever,
-)
-
-ollama_client = ollama.Client(
-    host=OLLAMA_URL,
-    timeout=OLLAMA_TIMEOUT,
 )
 
 
@@ -41,14 +32,13 @@ def build_prompt(
 
 
 @traceable(
-    name="ollama-chat", run_type="llm", metadata={"model": GENERATE_MODEL}
+    name="llm-chat",
+    run_type="llm",
+    metadata={"model": GENERATE_MODEL},
+    process_inputs=lambda inputs: {"prompt": inputs["prompt"]},
 )
-def _chat(prompt: str) -> str:
-    result = ollama_client.chat(
-        model=GENERATE_MODEL,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return result["message"]["content"]
+def _chat(prompt: str, client: LLMClient) -> str:
+    return client.chat(prompt)
 
 
 @traceable(
@@ -57,8 +47,10 @@ def _chat(prompt: str) -> str:
     process_inputs=lambda inputs: {"query": inputs["query"]},
 )
 def generate_response_with_sources(
-    query: str, retriever: RAGRetriever
+    query: str,
+    retriever: RAGRetriever,
+    client: LLMClient | None = None,
 ) -> tuple[str, list[Document]]:
     prompt, retrieved_docs = build_prompt(query, retriever=retriever)
-    result = _chat(prompt)
-    return result, retrieved_docs
+    llm_client = get_llm_client() if client is None else client
+    return _chat(prompt, llm_client), retrieved_docs

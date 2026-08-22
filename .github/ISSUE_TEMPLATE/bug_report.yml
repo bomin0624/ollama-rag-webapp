@@ -12,11 +12,11 @@ body:
     attributes:
       label: Search before asking
       description: >
-        Please make sure to search in the [issues](https://github.com/CheyuWu/ollama-rag-webapp/issues)
+        Please make sure to search in the [issues](https://github.com/bomin0624/ollama-rag-webapp/issues)
         first to see whether the same issue was reported already.
       options:
         - label: >
-            I searched the [issues](https://github.com/CheyuWu/ollama-rag-webapp/issues) and found no
+            I searched the [issues](https://github.com/bomin0624/ollama-rag-webapp/issues) and found no
             similar issues.
           required: true
   - type: textarea
@@ -57,7 +57,7 @@ body:
       value: |
         - OS:
         - Python version:
-        - Ollama version / model:
+        - vLLM version / model:
         - Embedding model & dimension:
         - Dataset (BEIR):
     validations:

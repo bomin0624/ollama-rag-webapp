@@ -9,7 +9,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from src.config import LOG_DIR, VECTOR_DB_DIR
+from src.config import GENERATE_MODEL, LOG_DIR, VECTOR_DB_DIR
+from src.model import get_llm_client
 from src.retriever.retriever import get_retriever
 from src.retriever.utils import initialize_vector_database
 from src.routes import router
@@ -47,6 +48,8 @@ async def lifespan(app: FastAPI):
     logging.info("Warming up retriever (models + BM25 index)...")
     get_retriever(str(VECTOR_DB_DIR))
     logging.info("Retriever is ready.")
+    get_llm_client()
+    logging.info("LLM client for model %r constructed.", GENERATE_MODEL)
 
     yield
 

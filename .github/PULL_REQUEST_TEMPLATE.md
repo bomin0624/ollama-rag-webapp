@@ -35,7 +35,7 @@
 - [ ] I have added or updated tests where appropriate
 - [ ] I have updated the documentation where appropriate
 - [ ] All new and existing tests pass locally
-- [ ] Any config changes (embeddings, dimensions, reranker, Ollama model) are documented
+- [ ] Any config changes (embeddings, dimensions, reranker, vLLM model) are documented
 
 ## Screenshots / Logs
 

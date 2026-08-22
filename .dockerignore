@@ -6,6 +6,5 @@ __pycache__
 .vscode
 datasets
 vectordatabase
-ollama
 log
 *.pyc
