@@ -9,8 +9,7 @@ services:
       - LANGSMITH_API_KEY=${LANGSMITH_API_KEY:?LANGSMITH_API_KEY is required}
       - LANGSMITH_TRACING=true
       - LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-rag-dev}
-      - LLM_BACKEND=${LLM_BACKEND:-ollama}
-      - LLM_BASE_URL=${LLM_BASE_URL:-http://ollama:11434}
+      - LLM_BASE_URL=${LLM_BASE_URL:-http://vllm:8000}
       - LLM_TIMEOUT=${LLM_TIMEOUT:-120}
       # Unset falls through to the defaults in src/config.py.
       - GENERATE_MODEL
@@ -19,35 +18,10 @@ services:
       - ./datasets:/app/datasets
       - ./vectordatabase:/app/vectordatabase
       - ./log:/app/log
-    # required: false keeps a backend out of the way when its profile is off,
-    # instead of pulling it in as an implicit dependency.
     depends_on:
-      ollama:
-        condition: service_started
-        required: false
       vllm:
         condition: service_healthy
-        required: false
     restart: unless-stopped
-    # Enable GPU support
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-  ollama:
-    image: ollama/ollama:0.32.1
-    container_name: ollama
-    profiles: ["ollama"]
-    restart: unless-stopped
-    ports:
-      - "11434:11434"
-    volumes:
-      - ./ollama:/root/.ollama
-    environment:
-      - OLLAMA_HOST=0.0.0.0
     # Enable GPU support
     deploy:
       resources:
@@ -59,7 +33,6 @@ services:
   vllm:
     image: vllm/vllm-openai:v0.26.0
     container_name: vllm
-    profiles: ["vllm"]
     # vLLM fails at engine init when it fails at all (bad model id, not enough
     # VRAM), and those failures do not fix themselves. unless-stopped turns
     # them into an endless crash loop that holds the GPU and floods the logs.
@@ -80,8 +53,8 @@ services:
     ipc: host
     command:
       # Positional: --model is deprecated in `vllm serve`. Hand-synced with
-      # DEFAULT_GENERATE_MODELS["vllm"] in src/config.py; the api service
-      # resolves its own default, so both literals must be edited together.
+      # GENERATE_MODEL in src/config.py; the api service resolves its own
+      # default, so both literals must be edited together.
       - ${GENERATE_MODEL:-Qwen/Qwen2.5-1.5B-Instruct}
       # The api container holds the embedding and reranker models on the same
       # GPU, so vLLM must not claim the whole card. Raise on a bigger GPU.

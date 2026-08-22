@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from src.config import LLM_BACKEND, LOG_DIR, VECTOR_DB_DIR
+from src.config import GENERATE_MODEL, LOG_DIR, VECTOR_DB_DIR
 from src.model import get_llm_client
 from src.retriever.retriever import get_retriever
 from src.retriever.utils import initialize_vector_database
@@ -48,10 +48,8 @@ async def lifespan(app: FastAPI):
     logging.info("Warming up retriever (models + BM25 index)...")
     get_retriever(str(VECTOR_DB_DIR))
     logging.info("Retriever is ready.")
-    # Resolve the backend name here so an unknown LLM_BACKEND fails the boot
-    # instead of the first query.
     get_llm_client()
-    logging.info("LLM client for backend %r constructed.", LLM_BACKEND)
+    logging.info("LLM client for model %r constructed.", GENERATE_MODEL)
 
     yield
 

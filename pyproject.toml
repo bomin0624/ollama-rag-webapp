@@ -13,7 +13,6 @@ dependencies = [
     "langchain-chroma>=1.1.0",
     "sentence-transformers>=5.2.0",
     "httpx>=0.27.0",
-    "ollama>=0.6.1",
     "rank-bm25>=0.2.2",
     "langchain-huggingface>=1.2.0",
     "fastapi[standard]>=0.136.0",
@@ -50,4 +49,3 @@ select = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
-known-third-party = ["ollama"]

@@ -28,29 +28,14 @@ EMBEDDING_MODEL = "mixedbread-ai/mxbai-embed-large-v1"
 
 RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 
-# Chat backend used for answer generation. Backends are registered in
-# LLM_CLIENT_CLASSES in src/model.py, which also validates this value.
-LLM_BACKEND = os.getenv("LLM_BACKEND", "ollama")
-
-DEFAULT_LLM_BASE_URLS = {
-    "ollama": "http://localhost:11434",
-    "vllm": "http://localhost:8001",
-}
-
-DEFAULT_GENERATE_MODELS = {
-    "ollama": "llama3.1",
-    "vllm": "Qwen/Qwen2.5-1.5B-Instruct",
-}
-
-# An unknown backend leaves these empty; get_llm_client() is what reports it.
-LLM_BASE_URL = os.getenv(
-    "LLM_BASE_URL", DEFAULT_LLM_BASE_URLS.get(LLM_BACKEND, "")
-)
+# vLLM's OpenAI-compatible server. It listens on 8000 in-container; the host
+# port is 8001 because the api already owns 8000.
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:8001")
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
 
-GENERATE_MODEL = os.getenv(
-    "GENERATE_MODEL", DEFAULT_GENERATE_MODELS.get(LLM_BACKEND, "")
-)
+# Hand-synced with the vllm service's model argument in docker-compose.yml;
+# the client resolves its own default, so both literals move together.
+GENERATE_MODEL = os.getenv("GENERATE_MODEL", "Qwen/Qwen2.5-1.5B-Instruct")
 
 # vLLM serves without authentication unless started with --api-key, but the
 # OpenAI SDK still requires a non-empty key.

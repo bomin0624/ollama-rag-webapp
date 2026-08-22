@@ -2,9 +2,8 @@
 
 A local retrieval-augmented generation (RAG) API built with FastAPI. It
 indexes the BEIR `nfcorpus` dataset in Chroma, retrieves and reranks relevant
-passages, and asks a locally served model to generate an answer through a
-pluggable backend (Ollama or vLLM). Each query response also includes the
-passages used as sources.
+passages, and asks a model served locally by vLLM to generate an answer. Each
+query response also includes the passages used as sources.
 
 ## How it works
 
@@ -16,7 +15,7 @@ flowchart LR
     Retriever --> BM25[BM25 search]
     Vector --> Reranker[Cross-encoder reranker]
     BM25 --> Reranker
-    Reranker --> LLM[LLM backend: Ollama or vLLM]
+    Reranker --> LLM[vLLM]
     LLM --> API
 ```
 
@@ -28,8 +27,8 @@ By default, the application uses hybrid retrieval:
 3. Reciprocal-rank fusion combines both result sets.
 4. `BAAI/bge-reranker-v2-m3` reranks the candidates and keeps the best three
    distinct source documents.
-5. The selected content is supplied to the configured LLM backend
-   (`llama3.1` on Ollama by default).
+5. The selected content is supplied to the model served by vLLM
+   (`Qwen/Qwen2.5-1.5B-Instruct` by default).
 
 The vector database is created automatically on the first application start.
 The build downloads `nfcorpus`, splits its documents into 2,048-character
@@ -40,37 +39,29 @@ embeddings in `vectordatabase/`.
 
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/)
-- A generation backend: Ollama or vLLM, both supplied as Compose services
 - Docker Desktop with Compose
+- An NVIDIA GPU, effectively required by vLLM
 
-An NVIDIA GPU is optional for Ollama but effectively required for vLLM. The
-supplied Compose configuration requests one for every service; remove the
+The supplied Compose configuration requests a GPU for every service; remove the
 `deploy.resources.reservations.devices` blocks from `docker-compose.yml` when
 running without NVIDIA GPU support.
 
-## LLM backend
+## LLM server
 
 Answer generation goes through the `LLMClient` protocol in `src/model.py`,
-so which backend serves the model is a configuration choice rather than a code
-change. Configure it with environment variables:
+implemented against vLLM's OpenAI-compatible `/v1` API. Configure it with
+environment variables:
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `LLM_BACKEND` | `ollama` | Chat backend to use: `ollama` or `vllm`. |
-| `LLM_BASE_URL` | per backend | `http://localhost:11434` for `ollama`, `http://localhost:8001` for `vllm`. |
+| `LLM_BASE_URL` | `http://localhost:8001` | vLLM server URL. |
 | `LLM_TIMEOUT` | `120` | Request timeout in seconds. |
-| `GENERATE_MODEL` | per backend | `llama3.1` for `ollama`, `Qwen/Qwen2.5-1.5B-Instruct` for `vllm`. |
-| `LLM_API_KEY` | `EMPTY` | Only used by `vllm`, and only if it was started with `--api-key`. |
+| `GENERATE_MODEL` | `Qwen/Qwen2.5-1.5B-Instruct` | Hugging Face repo id vLLM was launched with. |
+| `LLM_API_KEY` | `EMPTY` | Only used if vLLM was started with `--api-key`. |
 
-The client is built during app startup, so an unknown `LLM_BACKEND` fails the
-boot with a `ValueError` listing the accepted values rather than failing the
-first query.
-
-The two backends name models differently: Ollama uses its own tags
-(`llama3.1`), vLLM uses the Hugging Face repo id it was launched with
-(`Qwen/Qwen2.5-1.5B-Instruct`). `src/config.py` picks the right default per
-backend, so `GENERATE_MODEL` only needs setting when you want a different
-model.
+vLLM names models by the Hugging Face repo id it was served with, so
+`GENERATE_MODEL` has to match what the `vllm` service was launched with. Both
+read the same variable, so setting it once keeps them together.
 
 ## Run locally
 
@@ -80,25 +71,18 @@ Install the Python dependencies:
 make install
 ```
 
-Then start a backend container and the API with hot reload in one step —
-Ollama by default:
-
-```bash
-make ollama
-```
-
-Or with vLLM:
+Then start the vLLM container and the API with hot reload in one step:
 
 ```bash
 make vllm
 ```
 
-| Step | `make ollama` | `make vllm` |
-| --- | --- | --- |
-| Start the container | `--profile ollama up -d ollama` | `--profile vllm up -d vllm` |
-| Wait until ready | poll `localhost:11434` | poll `localhost:8001/health` |
-| Fetch the model | `ollama pull llama3.1` | downloaded on first serve |
-| Serve the app | `uvicorn --reload` on `localhost:8000` | same |
+| Step | `make vllm` |
+| --- | --- |
+| Start the container | `docker compose up -d vllm` |
+| Wait until ready | poll `localhost:8001/health` |
+| Fetch the model | downloaded on first serve |
+| Serve the app | `uvicorn --reload` on `localhost:8000` |
 
 The API is available at `http://localhost:8000`. On the first start, model
 downloads and vector-database construction can take several minutes.
@@ -109,9 +93,8 @@ To serve a different model, set `GENERATE_MODEL` on the same line:
 GENERATE_MODEL=Qwen/Qwen2.5-1.5B-Instruct make vllm
 ```
 
-`GENERATE_MODEL` is read by the app and, on the vLLM profile, by the `vllm`
-service itself, so setting it once keeps the client and the server on the same
-model; on the Ollama line it also selects what `ollama pull` fetches. Set
+`GENERATE_MODEL` is read by the app and by the `vllm` service itself, so
+setting it once keeps the client and the server on the same model. Set
 `HF_TOKEN` as well for gated Hugging Face repos such as `meta-llama/*` —
 without it vLLM fails at startup rather than falling back to anything.
 
@@ -131,42 +114,36 @@ be unsupported on your driver.
 
 ### Running the steps separately
 
-`make ollama` and `make vllm` are compositions of smaller targets, each usable
-on its own with `BACKEND=ollama|vllm`:
+`make vllm` is a composition of smaller targets, each usable on its own:
 
 ```bash
-make backend-only BACKEND=vllm        # just the backend container
-make wait-backend BACKEND=vllm        # block until it answers
-make run BACKEND=vllm                 # just the FastAPI app
-make backend-down                     # stop the API and every backend
+make backend-only        # just the vLLM container
+make wait-backend        # block until it answers
+make run                 # just the FastAPI app
+make backend-down        # stop the API and vLLM
 ```
 
 ## Run with Docker Compose
 
-To run the API in Docker as well, `make backend` starts the API container and
-exactly one backend:
+To run the API in Docker as well, `make backend` starts both containers:
 
 ```bash
-make backend                 # Ollama
-make backend BACKEND=vllm    # vLLM
+make backend
 ```
 
-The backends sit behind Compose profiles, so a bare `docker compose up` starts
-the API alone. Name the profile to bring one up by hand:
+Or by hand:
 
 ```bash
-docker compose --profile ollama up --build -d
-docker compose exec ollama ollama pull llama3.1
+docker compose up --build -d
 ```
 
-Inside the Compose network the API reaches the backend by service name, so it
-runs with `LLM_BASE_URL=http://ollama:11434` or `http://vllm:8000`. `make
-backend` derives both the profile and the URL from `BACKEND`, so the two cannot
-drift apart.
+The API waits for vLLM's health check before it starts. Inside the Compose
+network it reaches vLLM by service name, so it runs with
+`LLM_BASE_URL=http://vllm:8000`.
 
-Compose persists datasets, Chroma data, logs, and Ollama models in the local
-`datasets/`, `vectordatabase/`, `log/`, and `ollama/` directories. vLLM caches
-Hugging Face weights in `$HF_HOME` (default `~/.cache/huggingface`).
+Compose persists datasets, Chroma data, and logs in the local `datasets/`,
+`vectordatabase/`, and `log/` directories. vLLM caches Hugging Face weights in
+`$HF_HOME` (default `~/.cache/huggingface`).
 
 ### Docker Compose
 
@@ -191,7 +168,7 @@ LangSmith.
 
 The answer-generation chain is instrumented with LangSmith as `rag-query`.
 When tracing is enabled, each `/query` request produces a trace containing the
-retrieval-backed prompt and the LLM backend's generation call.
+retrieval-backed prompt and vLLM's generation call.
 
 ### View traces in LangSmith
 
@@ -254,7 +231,7 @@ It must contain between 1 and 1,000 characters.
       "content": "The retrieved source passage..."
     }
   ],
-  "model": "llama3.1"
+  "model": "Qwen/Qwen2.5-1.5B-Instruct"
 }
 ```
 
@@ -266,18 +243,14 @@ Project defaults live in `src/config.py`.
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
-| `GENERATE_MODEL` | per backend | Model used to generate answers. |
+| `GENERATE_MODEL` | `Qwen/Qwen2.5-1.5B-Instruct` | Model used to generate answers. |
 | `RETRIEVER_TYPE` | `hybrid` | Retrieval mode: `hybrid` or `vector`. |
 | `SEARCH_K` | `200` | Candidate chunks collected before reranking. |
 | `RERANK_RETURN_N` | `3` | Number of distinct source documents returned. |
 | `EMBED_TRUNCATE_DIM` | `512` | Embedding dimension; may be overridden with an environment variable. |
-| `LLM_BACKEND` | `ollama` | Chat backend that serves the model: `ollama` or `vllm`. |
-| `LLM_BASE_URL` | per backend | Backend server URL. |
-| `LLM_TIMEOUT` | `120` | Backend request timeout in seconds. |
-| `LLM_API_KEY` | `EMPTY` | Only used by `vllm`. |
-
-The per-backend defaults for `LLM_BASE_URL` and `GENERATE_MODEL` are listed
-under [LLM backend](#llm-backend).
+| `LLM_BASE_URL` | `http://localhost:8001` | vLLM server URL. |
+| `LLM_TIMEOUT` | `120` | vLLM request timeout in seconds. |
+| `LLM_API_KEY` | `EMPTY` | Only used if vLLM was started with `--api-key`. |
 
 The persisted Chroma collection has a fixed embedding dimension. If you change
 `EMBED_TRUNCATE_DIM` or the embedding model, remove `vectordatabase/` and let
@@ -307,9 +280,9 @@ mismatch error and you have to rebuild first with
 `rm -rf vectordatabase/ && make evaluate DIM=256`, since the evaluation
 initializes the database itself.
 
-Evaluation only exercises retrieval, so no generation backend needs to be
-running — but the embedding and reranker models load onto the GPU, so stop any
-backend holding it first with `make backend-down`.
+Evaluation only exercises retrieval, so vLLM does not need to be running — but
+the embedding and reranker models load onto the GPU, so stop vLLM first with
+`make backend-down` if it is holding the card.
 
 
 Evaluation logs are written to `log/`.
@@ -402,11 +375,11 @@ is not calculated for that stage: initial retrieval is evaluated at
 main.py                   FastAPI application and startup lifecycle
 src/routes.py             Health and query endpoints
 src/generator.py          Prompt construction and answer generation
-src/model.py              LLMClient protocol and backend registry
+src/model.py              LLMClient protocol and the vLLM client
 src/retriever/            Chroma, BM25, and reranking implementation
 src/config.py             Models, retrieval, chunking, and path settings
 evaluate/evaluation.py    BEIR retrieval evaluation entry point
 tests/                    Unit tests
-docker-compose.yml        API plus the ollama and vllm profiles
-Makefile                  Backend lines, dev commands, and CI checks
+docker-compose.yml        API and vLLM services
+Makefile                  Stack targets, dev commands, and CI checks
 ```

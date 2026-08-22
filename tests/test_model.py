@@ -2,36 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.model import (
-    LLM_CLIENT_CLASSES,
-    OllamaClient,
-    VLLMClient,
-    get_llm_client,
-)
-
-# Ollama drops "content" from the message on some replies, which is a
-# different wire shape from sending it as null.
-ABSENT = object()
-
-
-class FakeOllamaAPI:
-    """Stands in for ollama.Client, recording the chat calls it receives."""
-
-    def __init__(
-        self,
-        content: object = "canned answer",
-        done_reason: str = "stop",
-    ):
-        self.content = content
-        self.done_reason = done_reason
-        self.calls: list[dict] = []
-
-    def chat(self, **kwargs):
-        self.calls.append(kwargs)
-        message = {"role": "assistant"}
-        if self.content is not ABSENT:
-            message["content"] = self.content
-        return {"message": message, "done_reason": self.done_reason}
+from src.model import VLLMClient, get_llm_client
 
 
 class FakeCompletions:
@@ -81,63 +52,12 @@ def clear_llm_client_cache():
     get_llm_client.cache_clear()
 
 
-def test_registry_exposes_both_backends():
-    assert set(LLM_CLIENT_CLASSES) == {"ollama", "vllm"}
-    assert LLM_CLIENT_CLASSES["ollama"] is OllamaClient
-    assert LLM_CLIENT_CLASSES["vllm"] is VLLMClient
+def test_get_llm_client_builds_a_vllm_client():
+    assert isinstance(get_llm_client(), VLLMClient)
 
 
-@pytest.mark.parametrize(
-    ("backend", "expected_class"),
-    [("ollama", OllamaClient), ("vllm", VLLMClient)],
-)
-def test_get_llm_client_builds_the_configured_backend(
-    monkeypatch, backend, expected_class
-):
-    monkeypatch.setattr("src.model.LLM_BACKEND", backend)
-
-    assert isinstance(get_llm_client(), expected_class)
-
-
-def test_get_llm_client_caches_the_client(monkeypatch):
-    monkeypatch.setattr("src.model.LLM_BACKEND", "ollama")
-
+def test_get_llm_client_caches_the_client():
     assert get_llm_client() is get_llm_client()
-
-
-def test_get_llm_client_rejects_an_unknown_backend(monkeypatch):
-    monkeypatch.setattr("src.model.LLM_BACKEND", "openrouter")
-
-    with pytest.raises(ValueError, match="Invalid LLM_BACKEND"):
-        get_llm_client()
-
-
-def test_get_llm_client_lists_the_accepted_backends_when_rejecting(
-    monkeypatch,
-):
-    monkeypatch.setattr("src.model.LLM_BACKEND", "openrouter")
-
-    with pytest.raises(ValueError) as excinfo:
-        get_llm_client()
-
-    assert "ollama" in str(excinfo.value)
-    assert "vllm" in str(excinfo.value)
-
-
-def test_ollama_client_sends_the_prompt_and_returns_the_content():
-    client = OllamaClient(
-        base_url="http://localhost:11434", timeout=5.0, model="llama3.1"
-    )
-    api = FakeOllamaAPI("Statins are safe.")
-    client.client = api
-
-    answer = client.chat("Do statins cause cancer?")
-
-    assert answer == "Statins are safe."
-    assert api.calls[0]["model"] == "llama3.1"
-    assert api.calls[0]["messages"] == [
-        {"role": "user", "content": "Do statins cause cancer?"}
-    ]
 
 
 def test_vllm_client_sends_the_prompt_and_returns_the_content():
@@ -167,19 +87,6 @@ def test_vllm_client_raises_when_the_response_has_no_choices():
     client = build_vllm_client(FakeCompletions(choice_count=0))
 
     with pytest.raises(ValueError, match="returned no choices"):
-        client.chat("Do statins cause cancer?")
-
-
-@pytest.mark.parametrize(
-    "content", [None, "", ABSENT], ids=["null", "empty-string", "absent"]
-)
-def test_ollama_client_raises_when_the_model_returns_no_content(content):
-    client = OllamaClient(
-        base_url="http://localhost:11434", timeout=5.0, model="llama3.1"
-    )
-    client.client = FakeOllamaAPI(content, done_reason="length")
-
-    with pytest.raises(ValueError, match="returned no content"):
         client.chat("Do statins cause cancer?")
 
 

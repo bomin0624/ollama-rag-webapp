@@ -6,39 +6,23 @@ PORT ?= 8000
 RETRIEVER ?= hybrid
 SPLIT ?= dev
 DIM ?= 512
-BACKEND ?= ollama
 COMPOSE ?= docker compose
 
-# Derived from BACKEND so the profile and the URL cannot drift apart. Two
-# spellings: service names resolve only inside the Compose network.
-BACKEND_URL_ollama       = http://ollama:11434
-BACKEND_URL_vllm         = http://vllm:8000
-LOCAL_BACKEND_URL_ollama = http://localhost:11434
-LOCAL_BACKEND_URL_vllm   = http://localhost:8001
-
-BACKEND_URL       = $(BACKEND_URL_$(BACKEND))
-LOCAL_BACKEND_URL = $(LOCAL_BACKEND_URL_$(BACKEND))
-
-# Readiness probe: Ollama answers on /, vLLM on /health.
-HEALTH_PATH_ollama =
-HEALTH_PATH_vllm   = /health
-HEALTH_PATH = $(HEALTH_PATH_$(BACKEND))
+# Two spellings: the service name resolves only inside the Compose network.
+BACKEND_URL       = http://vllm:8000
+LOCAL_BACKEND_URL = http://localhost:8001
 
 # 5-second steps, so 120 is a 10-minute ceiling for vLLM's cold start.
 BACKEND_WAIT_TRIES ?= 120
 
-OLLAMA_MODEL ?= $(or $(GENERATE_MODEL),llama3.1)
-
 .PHONY: help install format format-check lint test evaluate ci \
-	ollama vllm run backend backend-only backend-down \
-	wait-backend ollama-pull check-backend
+	vllm run backend backend-only backend-down wait-backend
 
 # `run` blocks, so a line's steps must stay ordered.
 .NOTPARALLEL:
 
 help:
-	@printf "Full stacks (backend in Docker, FastAPI on the host):\n"
-	@printf "  ollama        Start Ollama, pull $(OLLAMA_MODEL), serve the app\n"
+	@printf "Full stack (vLLM in Docker, FastAPI on the host):\n"
 	@printf "  vllm          Start vLLM, wait for it, serve the app\n"
 	@printf "\nIndividual steps:\n"
 	@printf "  install       Install project dependencies with uv\n"
@@ -48,18 +32,11 @@ help:
 	@printf "  test          Run the unit tests with pytest\n"
 	@printf "  evaluate      Run retriever evaluation (RETRIEVER=hybrid SPLIT=dev DIM=512)\n"
 	@printf "  ci            Run all CI checks\n"
-	@printf "  run           Start the FastAPI app locally against BACKEND\n"
-	@printf "  backend       Start the API in Docker too, with exactly one backend\n"
-	@printf "  backend-only  Start just the backend container\n"
-	@printf "  backend-down  Stop the API and every backend\n"
+	@printf "  run           Start the FastAPI app locally against vLLM\n"
+	@printf "  backend       Start the API in Docker too, alongside vLLM\n"
+	@printf "  backend-only  Start just the vLLM container\n"
+	@printf "  backend-down  Stop the API and vLLM\n"
 
-# The two supported lines. `override`, because a command-line BACKEND= would
-# otherwise outrank the target-specific value and turn `make ollama
-# BACKEND=vllm` into a vLLM start followed by a pull against a dead ollama.
-ollama: override BACKEND = ollama
-ollama: backend-only wait-backend ollama-pull run
-
-vllm: override BACKEND = vllm
 vllm: backend-only wait-backend run
 
 install:
@@ -84,49 +61,28 @@ evaluate:
 
 ci: format-check test
 
-run: check-backend
-	@test -z "$$LLM_BACKEND" || test "$$LLM_BACKEND" = '$(BACKEND)' || { \
-		printf 'LLM_BACKEND=%s conflicts with BACKEND=%s. Unset one.\n' \
-			"$$LLM_BACKEND" '$(BACKEND)'; \
-		exit 1; \
-	}
-	LLM_BACKEND=$(BACKEND) \
+run:
 	LLM_BASE_URL=$${LLM_BASE_URL:-$(LOCAL_BACKEND_URL)} \
 		$(UV) run uvicorn $(APP) --host $(HOST) --port $(PORT) --reload
 
-# Profiles filter `down` too, so switching backends needs `--profile "*"`.
-backend: check-backend backend-down
-	LLM_BACKEND=$(BACKEND) LLM_BASE_URL=$(BACKEND_URL) \
-		$(COMPOSE) --profile $(BACKEND) up -d
-	@test '$(BACKEND)' != ollama || \
-		$(MAKE) --no-print-directory wait-backend ollama-pull BACKEND=ollama
+backend: backend-down
+	LLM_BASE_URL=$(BACKEND_URL) $(COMPOSE) up -d
 
 # Naming the service skips the api container, leaving the GPU to `make run`.
-backend-only: check-backend backend-down
-	$(COMPOSE) --profile $(BACKEND) up -d $(BACKEND)
+backend-only: backend-down
+	$(COMPOSE) up -d vllm
 
 # The app never connects at startup, so a booting vLLM would fail at /query.
-wait-backend: check-backend
-	@printf 'Waiting for %s at %s ' '$(BACKEND)' '$(LOCAL_BACKEND_URL)'; \
+wait-backend:
+	@printf 'Waiting for vllm at %s ' '$(LOCAL_BACKEND_URL)'; \
 	for _ in $$(seq $(BACKEND_WAIT_TRIES)); do \
-		if curl -sf -o /dev/null $(LOCAL_BACKEND_URL)$(HEALTH_PATH); then \
+		if curl -sf -o /dev/null $(LOCAL_BACKEND_URL)/health; then \
 			printf 'ready\n'; exit 0; \
 		fi; \
 		printf '.'; sleep 5; \
 	done; \
-	printf '\n%s never answered. Check: %s logs %s\n' \
-		'$(BACKEND)' '$(COMPOSE)' '$(BACKEND)'; \
+	printf '\nvllm never answered. Check: %s logs vllm\n' '$(COMPOSE)'; \
 	exit 1
 
-# Ollama ships no weights; a no-op once ./ollama holds the model.
-ollama-pull:
-	$(COMPOSE) exec ollama ollama pull $(OLLAMA_MODEL)
-
-check-backend:
-	@test -n "$(BACKEND_URL)" || { \
-		printf 'Unknown BACKEND=%s. Use ollama or vllm.\n' '$(BACKEND)'; \
-		exit 1; \
-	}
-
 backend-down:
-	$(COMPOSE) --profile "*" down
+	$(COMPOSE) down
