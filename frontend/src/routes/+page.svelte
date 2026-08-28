@@ -49,6 +49,7 @@
 	}
 
 	function createChatSession(): ChatSession {
+		// Create a blank chat session with a unique ID and current timestamp.
 		return {
 			id: createId(),
 			title: 'New chat',
@@ -58,65 +59,81 @@
 	}
 
 	function createChat() {
+		// Add the new chat at the top of the list and make it the active chat.
 		const newChat = createChatSession();
 		chats = [newChat, ...chats];
 		activeChatId = newChat.id;
+		// Clear any unfinished input and previous error message for the new chat.
 		query = '';
 		error = '';
 	}
 
 	function selectChat(chatId: string) {
+		// Switch the visible conversation and clear any previous error message.
 		activeChatId = chatId;
 		error = '';
 	}
 
 	function requestDeleteChat(event: MouseEvent, chatId: string) {
+		// Prevent the delete click from also selecting this chat.
 		event.stopPropagation();
+		// Save the target ID so the confirmation dialog can delete it later.
 		chatPendingDeletion = chatId;
 	}
 
 	function deleteChat() {
+		// Exit safely if no chat has been selected for deletion.
 		const chatId = chatPendingDeletion;
 		if (!chatId) return;
 
 		chatPendingDeletion = null;
 
+		// Create a new list without the selected chat.
 		const remainingChats = chats.filter((chat) => chat.id !== chatId);
 		chats = remainingChats;
 
 		if (activeChatId === chatId) {
 			if (remainingChats.length > 0) {
+				// When deleting the active chat, switch to the first remaining one.
 				activeChatId = remainingChats[0].id;
 			} else {
+				// Always keep one chat available when the last chat is deleted.
 				createChat();
 			}
 		}
 	}
 
 	function makeTitle(question: string) {
+		// Use the first question as a short chat title.
 		return question.length > 28 ? `${question.slice(0, 28)}...` : question;
 	}
 
 	async function submitQuery() {
+		// Remove leading/trailing whitespace before sending the question.
 		const question = query.trim();
 
+		// Do not send an empty question or start a duplicate request.
 		if (!question || isLoading) return;
 
 		let chatId = activeChatId;
 		if (!chatId) {
+			// Create a chat if no active chat is available.
 			createChat();
 			chatId = activeChatId;
 		}
 
 		if (!chatId) return;
 
+		// Show the loading state and clear any previous request error.
 		isLoading = true;
 		error = '';
 
 		try {
+			// Send the question to the RAG API and wait for its response.
 			const response = await queryRag(question);
 			const entry: ChatEntry = { id: createId(), query: question, response };
 
+			// Add the question/response pair to this chat, then move it to the top.
 			chats = chats
 				.map((chat) => {
 					if (chat.id !== chatId) return chat;
@@ -129,13 +146,16 @@
 					};
 				})
 				.sort((first, second) => second.updatedAt - first.updatedAt);
+			// Clear the input only after the request succeeds.
 			query = '';
 		} catch (caughtError) {
+			// Show a useful message when the request fails.
 			error =
 				caughtError instanceof Error
 					? caughtError.message
 					: 'An unexpected error occurred. Please try again.';
 		} finally {
+			// Always allow the user to submit another question.
 			isLoading = false;
 		}
 	}
