@@ -19,6 +19,7 @@ dependencies = [
     "uvicorn>=0.41.0",
     "langsmith>=0.6.2",
     "openai>=2.53.0",
+    "ragas>=0.4.3",
 ]
 
 [dependency-groups]
